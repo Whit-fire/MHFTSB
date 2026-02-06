@@ -48,6 +48,12 @@ export const Sidebar = ({ currentPage, onPageChange, botStatus, wsConnected, wal
       </nav>
 
       <div className="p-4 border-t border-hft-border space-y-2">
+        {walletAddress && (
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-hft-border/50">
+            <Wallet size={10} className="text-hft-green" />
+            <span className="font-mono text-[10px] text-hft-green truncate">{walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] tracking-widest text-hft-muted">GATE</span>
           <span className="font-mono text-xs text-white">{gate.in_flight || 0}/{gate.max_in_flight || 3}</span>
