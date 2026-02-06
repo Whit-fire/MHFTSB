@@ -13,6 +13,7 @@ import MetricsPage from './pages/MetricsPage';
 function App() {
   const [page, setPage] = useState('control');
   const [botStatus, setBotStatus] = useState(null);
+  const [walletAddress, setWalletAddress] = useState(null);
   const { connected, logs, metrics, positions, clearLogs } = useWebSocket();
 
   useEffect(() => {
@@ -27,6 +28,12 @@ function App() {
     return () => clearInterval(iv);
   }, []);
 
+  useEffect(() => {
+    botApi.getWalletStatus().then(r => {
+      if (r.data.address) setWalletAddress(r.data.address);
+    }).catch(() => {});
+  }, [page]);
+
   const liveStatus = metrics || botStatus;
 
   return (
@@ -36,10 +43,11 @@ function App() {
         onPageChange={setPage}
         botStatus={liveStatus}
         wsConnected={connected}
+        walletAddress={walletAddress}
       />
       <main className="flex-1 overflow-y-auto" data-testid="main-content">
-        {page === 'setup' && <SetupPage />}
-        {page === 'control' && <ControlPage status={liveStatus} metrics={metrics} />}
+        {page === 'setup' && <SetupPage onWalletChange={setWalletAddress} />}
+        {page === 'control' && <ControlPage status={liveStatus} metrics={metrics} walletAddress={walletAddress} />}
         {page === 'positions' && <PositionsPage positions={positions} />}
         {page === 'logs' && <LogsPage logs={logs} onClearLogs={clearLogs} />}
         {page === 'metrics' && <MetricsPage metrics={liveStatus} />}
