@@ -128,11 +128,18 @@ async def set_config_param(body: SetParam):
 async def encrypt_wallet(body: WalletSetup):
     if not body.private_key or not body.passphrase:
         return {"error": "private_key and passphrase required"}
+    try:
+        real_address = wallet_service.derive_address(body.private_key)
+    except Exception as e:
+        return {"error": f"Invalid private key format: {e}"}
     encrypted = SecurityService.encrypt(body.private_key, body.passphrase)
     wallet_state["encrypted_key"] = encrypted
-    wallet_state["address"] = body.private_key[:8] + "..." + body.private_key[-4:]
-    await db.wallet.update_one({}, {"$set": {"encrypted_key": encrypted, "address": wallet_state["address"]}}, upsert=True)
-    return {"success": True, "address": wallet_state["address"]}
+    wallet_state["address"] = real_address
+    wallet_state["unlocked"] = True
+    await db.wallet.update_one({}, {"$set": {
+        "encrypted_key": encrypted, "address": real_address
+    }}, upsert=True)
+    return {"success": True, "address": real_address}
 
 
 @api_router.post("/wallet/unlock")
@@ -145,10 +152,14 @@ async def unlock_wallet(body: WalletUnlock):
     if not wallet_state["encrypted_key"]:
         return {"error": "No wallet configured. Set up wallet first."}
     try:
-        SecurityService.decrypt(wallet_state["encrypted_key"], body.passphrase)
+        decrypted_key = SecurityService.decrypt(wallet_state["encrypted_key"], body.passphrase)
+        real_address = wallet_service.derive_address(decrypted_key)
         wallet_state["unlocked"] = True
-        return {"success": True, "address": wallet_state["address"]}
-    except Exception:
+        wallet_state["address"] = real_address
+        await db.wallet.update_one({}, {"$set": {"address": real_address}}, upsert=True)
+        return {"success": True, "address": real_address}
+    except Exception as e:
+        logger.error(f"Wallet unlock failed: {e}")
         return {"error": "Invalid passphrase"}
 
 
@@ -173,6 +184,21 @@ async def get_wallet_status():
         is_unlocked=wallet_state["unlocked"],
         address=wallet_state["address"]
     )
+
+
+@api_router.get("/wallet/balance")
+async def get_wallet_balance(address: str = None):
+    addr = address or wallet_service.address or wallet_state.get("address")
+    if not addr:
+        return {"error": "No wallet address. Encrypt and unlock wallet first."}
+    balance = await wallet_service.get_full_balance(addr)
+    return balance
+
+
+@api_router.get("/wallet/balance/{address}")
+async def get_address_balance(address: str):
+    balance = await wallet_service.get_full_balance(address)
+    return balance
 
 
 # -- Setup --
