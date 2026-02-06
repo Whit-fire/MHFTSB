@@ -8,8 +8,9 @@ import { Badge } from '../components/ui/badge';
 import { Play, Square, AlertTriangle, Zap, TrendingUp, Shield, Target, Clock } from 'lucide-react';
 import botApi from '../lib/api';
 import { toast } from 'sonner';
+import WalletPanel from '../components/WalletPanel';
 
-export default function ControlPage({ status, metrics }) {
+export default function ControlPage({ status, metrics, walletAddress }) {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(false);
   const botRunning = status?.status === 'running';
