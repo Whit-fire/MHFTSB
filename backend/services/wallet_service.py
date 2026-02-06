@@ -1,14 +1,50 @@
 import json
+import base64
+import hashlib
 import base58
 import aiohttp
 import logging
 from typing import List, Dict, Optional
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding as sym_padding
 
 logger = logging.getLogger("wallet_service")
 
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+
+def _evp_bytes_to_key(password: bytes, salt: bytes, key_len: int = 32, iv_len: int = 16):
+    d = b''
+    d_i = b''
+    while len(d) < key_len + iv_len:
+        d_i = hashlib.md5(d_i + password + salt).digest()
+        d += d_i
+    return d[:key_len], d[key_len:key_len + iv_len]
+
+
+def decrypt_cryptojs_aes(encrypted_b64: str, passphrase: str) -> str:
+    raw = base64.b64decode(encrypted_b64)
+    if raw[:8] != b'Salted__':
+        raise ValueError("Not a CryptoJS AES encrypted string")
+    salt = raw[8:16]
+    ciphertext = raw[16:]
+    key, iv = _evp_bytes_to_key(passphrase.encode('utf-8'), salt)
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    padded = decryptor.update(ciphertext) + decryptor.finalize()
+    unpadder = sym_padding.PKCS7(128).unpadder()
+    data = unpadder.update(padded) + unpadder.finalize()
+    return data.decode('utf-8')
+
+
+def is_cryptojs_encrypted(s: str) -> bool:
+    try:
+        raw = base64.b64decode(s.strip())
+        return raw[:8] == b'Salted__'
+    except Exception:
+        return False
 
 
 class WalletService:
@@ -17,8 +53,21 @@ class WalletService:
         self._address: Optional[str] = None
         self._key_bytes: Optional[bytes] = None
 
+    def decrypt_and_derive(self, encrypted_or_raw: str, passphrase: str = None) -> str:
+        raw_key = encrypted_or_raw.strip()
+
+        if is_cryptojs_encrypted(raw_key):
+            if not passphrase:
+                raise ValueError("Passphrase required to decrypt CryptoJS AES key")
+            logger.info("Detected CryptoJS AES encrypted key, decrypting...")
+            raw_key = decrypt_cryptojs_aes(raw_key, passphrase)
+            logger.info(f"Decrypted key length: {len(raw_key)} chars")
+
+        return self.derive_address(raw_key)
+
     def derive_address(self, private_key_str: str) -> str:
         raw = private_key_str.strip()
+
         if raw.startswith('['):
             key_bytes = bytes(json.loads(raw))
         else:
