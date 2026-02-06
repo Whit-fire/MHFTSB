@@ -26,6 +26,7 @@ from services.position_manager import PositionManager
 from services.metrics_service import MetricsService
 from services.bot_manager import BotManager
 from services.telegram_service import TelegramService
+from services.wallet_service import WalletService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
