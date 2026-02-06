@@ -141,16 +141,17 @@ export default function ControlPage({ status, metrics, walletAddress }) {
       </div>
 
       {config && (
-        <Card className="border-hft-border bg-hft-card">
-          <CardHeader className="py-3 px-4 border-b border-hft-border">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-mono uppercase tracking-wider">Strategy Configuration</CardTitle>
-              <Button data-testid="save-config-btn" onClick={handleConfigSave} size="sm"
-                      className="bg-hft-cyan text-black font-mono text-xs uppercase tracking-wider hover:bg-hft-cyan-dim">
-                Save Config
-              </Button>
-            </div>
-          </CardHeader>
+        <div className="grid grid-cols-[1fr_300px] gap-4">
+          <Card className="border-hft-border bg-hft-card">
+            <CardHeader className="py-3 px-4 border-b border-hft-border">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-mono uppercase tracking-wider">Strategy Configuration</CardTitle>
+                <Button data-testid="save-config-btn" onClick={handleConfigSave} size="sm"
+                        className="bg-hft-cyan text-black font-mono text-xs uppercase tracking-wider hover:bg-hft-cyan-dim">
+                  Save Config
+                </Button>
+              </div>
+            </CardHeader>
           <CardContent className="p-0">
             <Tabs defaultValue="filters" className="w-full">
               <TabsList className="w-full justify-start bg-transparent border-b border-hft-border px-2 h-9">
