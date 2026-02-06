@@ -222,7 +222,12 @@ export default function ControlPage({ status, metrics, walletAddress }) {
               </TabsContent>
             </Tabs>
           </CardContent>
-        </Card>
+          </Card>
+          <WalletPanel walletAddress={walletAddress} />
+        </div>
+      )}
+      {!config && (
+        <WalletPanel walletAddress={walletAddress} />
       )}
     </div>
   );
