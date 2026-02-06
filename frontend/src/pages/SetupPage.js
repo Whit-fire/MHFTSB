@@ -106,6 +106,12 @@ export default function SetupPage() {
               {walletStatus.is_unlocked ? 'UNLOCKED' : 'LOCKED'}
             </Badge>
             {walletStatus.address && <span className="font-mono text-xs text-hft-muted">{walletStatus.address}</span>}
+            {walletStatus.is_setup && (
+              <Button data-testid="reset-wallet-btn" size="sm" variant="ghost" onClick={handleResetWallet}
+                      className="ml-auto h-7 px-3 text-hft-red border border-hft-red/30 font-mono text-[10px] uppercase tracking-wider hover:bg-hft-red/10">
+                Reset Wallet
+              </Button>
+            )}
           </div>
           {!walletStatus.is_setup && (
             <div className="space-y-2">
@@ -130,6 +136,11 @@ export default function SetupPage() {
                       className="bg-hft-cyan text-black font-mono font-bold text-xs uppercase tracking-wider hover:bg-hft-cyan-dim">
                 Unlock
               </Button>
+            </div>
+          )}
+          {walletStatus.is_setup && walletStatus.is_unlocked && (
+            <div className="space-y-2 border-t border-hft-border pt-3 mt-2">
+              <p className="font-mono text-xs text-hft-muted">Wallet is active. To change wallet, click "Reset Wallet" above then enter your new private key.</p>
             </div>
           )}
         </CardContent>
