@@ -150,6 +150,15 @@ async def unlock_wallet(body: WalletUnlock):
         return {"error": "Invalid passphrase"}
 
 
+@api_router.post("/wallet/reset")
+async def reset_wallet():
+    wallet_state["encrypted_key"] = None
+    wallet_state["unlocked"] = False
+    wallet_state["address"] = None
+    await db.wallet.delete_many({})
+    return {"success": True, "message": "Wallet reset"}
+
+
 @api_router.get("/wallet/status")
 async def get_wallet_status():
     if not wallet_state["encrypted_key"]:
