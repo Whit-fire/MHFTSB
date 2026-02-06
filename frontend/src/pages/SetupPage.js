@@ -39,9 +39,10 @@ export default function SetupPage({ onWalletChange }) {
     try {
       const r = await botApi.encryptWallet(walletKey, passphrase);
       if (r.data.success) {
-        toast.success('Wallet encrypted and stored');
-        setWalletStatus({ is_setup: true, is_unlocked: false, address: r.data.address });
+        toast.success(`Wallet encrypted! Address: ${r.data.address}`);
+        setWalletStatus({ is_setup: true, is_unlocked: true, address: r.data.address });
         setWalletKey('');
+        if (onWalletChange) onWalletChange(r.data.address);
       } else {
         toast.error(r.data.error || 'Encryption failed');
       }
@@ -53,8 +54,9 @@ export default function SetupPage({ onWalletChange }) {
     try {
       const r = await botApi.unlockWallet(passphrase);
       if (r.data.success) {
-        toast.success('Wallet unlocked');
-        setWalletStatus(prev => ({ ...prev, is_unlocked: true }));
+        toast.success(`Wallet unlocked: ${r.data.address}`);
+        setWalletStatus(prev => ({ ...prev, is_unlocked: true, address: r.data.address }));
+        if (onWalletChange) onWalletChange(r.data.address);
       } else {
         toast.error(r.data.error || 'Unlock failed');
       }
