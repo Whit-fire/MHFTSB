@@ -1,0 +1,155 @@
+{
+  "identity": {
+    "persona": "E1 - The Anti-AI Designer",
+    "mission": "Create a professional, high-frequency trading (HFT) terminal for Solana. Eliminate generic SaaS aesthetics. Prioritize data density, speed, and 'Dark Mode' tactical visuals.",
+    "vibe": "Bloomberg Terminal meets Cyberpunk. Deep blacks, electric neons, rigid grids, zero fluff.",
+    "principles": [
+      "Speed is Feature #1: Visuals must imply low latency.",
+      "Density over Whitespace: Professional traders need data, not breathing room.",
+      "Contrast is King: Neon on Black for maximum readability.",
+      "No Rounded Corners: Sharp edges = Precision."
+    ]
+  },
+  "typography": {
+    "primary": {
+      "name": "Manrope",
+      "usage": "Headings, Labels, Navigation",
+      "weights": ["400", "600", "800"],
+      "source": "Google Fonts"
+    },
+    "mono": {
+      "name": "JetBrains Mono",
+      "usage": "All Data, Numbers, Prices, Logs, Code, Input Fields",
+      "weights": ["400", "700"],
+      "source": "Google Fonts"
+    },
+    "rules": [
+      "Use 'tracking-tight' for all headings.",
+      "Use 'tracking-wide' for all CAPS labels (e.g., 'STATUS', 'PNL').",
+      "Data values must always use the Mono font."
+    ]
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": {
+        "main": "#050505",
+        "card": "#0A0A0A",
+        "panel": "#09090b"
+      },
+      "primary": {
+        "main": "#00E676",
+        "hover": "#00C853",
+        "description": "Profit, Go, Active, Success"
+      },
+      "destructive": {
+        "main": "#FF1744",
+        "hover": "#D50000",
+        "description": "Loss, Stop, Danger, Error"
+      },
+      "accent": {
+        "main": "#00B0FF",
+        "hover": "#0091EA",
+        "description": "Selection, Focus, Information"
+      },
+      "neutral": {
+        "text_primary": "#FFFFFF",
+        "text_secondary": "#A1A1AA",
+        "border": "#27272a"
+      }
+    },
+    "gradients": {
+      "glow_green": "radial-gradient(circle, rgba(0,230,118,0.15) 0%, rgba(0,0,0,0) 70%)",
+      "glow_red": "radial-gradient(circle, rgba(255,23,68,0.15) 0%, rgba(0,0,0,0) 70%)"
+    }
+  },
+  "layout_strategy": {
+    "type": "Bento Grid (Mode B - High Density)",
+    "container_style": "Full width, fixed height (100vh) for main trading screen. Scrollable only within panels.",
+    "spacing": "Tight. Use 'p-2', 'p-3', 'gap-1' or 'gap-px'.",
+    "borders": "Visible Grid Lines. Use 'divide-zinc-800' and 'border-zinc-800'.",
+    "responsive": "Desktop First. Mobile view stacks panels vertically."
+  },
+  "components": {
+    "button": {
+      "style": "sharp",
+      "radius": "rounded-none",
+      "classes": "font-mono font-bold uppercase tracking-wider text-xs border border-border transition-all active:scale-95"
+    },
+    "card": {
+      "style": "flat",
+      "radius": "rounded-none",
+      "classes": "border-zinc-800 bg-zinc-950/50 backdrop-blur-md"
+    },
+    "input": {
+      "style": "terminal",
+      "radius": "rounded-none",
+      "classes": "bg-black border-zinc-800 font-mono focus:ring-1 focus:ring-primary focus:border-primary"
+    },
+    "table": {
+      "style": "dense",
+      "classes": "text-xs font-mono w-full caption-bottom text-sm",
+      "header_classes": "h-8 px-2 text-left align-middle font-medium text-muted-foreground uppercase tracking-wider text-[10px]",
+      "row_classes": "border-b border-zinc-800 transition-colors hover:bg-zinc-900/50 data-[state=selected]:bg-muted"
+    },
+    "badge": {
+        "style": "outline",
+        "radius": "rounded-none",
+        "classes": "font-mono text-[10px] uppercase tracking-widest border-current bg-transparent"
+    }
+  },
+  "visual_enhancers": {
+    "live_indicator": "Pulsing w-2 h-2 rounded-full bg-primary animate-pulse",
+    "scanlines": "Optional: 'bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-50 pointer-events-none fixed inset-0 bg-[length:100%_2px,3px_100%]'",
+    "glass": "backdrop-blur-xl bg-black/40 border border-white/5"
+  },
+  "pages": {
+    "auth": {
+      "layout": "Centered Card on Abstract Grid Background",
+      "background_image": "https://images.unsplash.com/photo-1769120062656-23adba3790b3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRpZ2l0YWwlMjBncmlkJTIwbmVvbiUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3MDQxNjUzNXww&ixlib=rb-4.1.0&q=85",
+      "elements": ["RPC Config", "Wallet Passphrase (Encrypted)", "Jito Endpoint"]
+    },
+    "control": {
+      "layout": "Split Pane (Resizable)",
+      "left_panel": "Strategy Config (JSON Editor / Form)",
+      "right_panel": "Bot Status, Start/Stop Big Button, Simulation Toggle",
+      "bottom_panel": "Latency Histogram & Logs"
+    },
+    "positions": {
+      "layout": "Full Width Data Grid",
+      "columns": ["Token", "Side", "Entry", "Mark", "PnL (SOL)", "PnL (%)", "Time Open", "Actions (Close, Force Sell)"]
+    },
+    "logs": {
+      "layout": "Terminal View",
+      "style": "Monospace, varying colors for [INFO], [WARN], [ERROR], [TRADE]",
+      "auto_scroll": "Sticky bottom"
+    }
+  },
+  "motion": {
+    "type": "Instant & Micro",
+    "transitions": "duration-100 ease-out",
+    "hover": "brightness-110",
+    "active": "scale-[0.99]"
+  },
+  "instructions_to_main_agent": {
+    "framework": "React (use existing .jsx pattern)",
+    "styling": "Tailwind CSS",
+    "components": "Shadcn UI (Customize to remove rounded corners)",
+    "icons": "Lucide React (default) or Radix Icons",
+    "charts": "Recharts (for latency and PnL)",
+    "state": "Use React Context or Zustand (if available) for Bot State",
+    "websocket": "Implement native WebSocket for logs/metrics",
+    "critical_rule": "DO NOT use 'rounded-lg', 'rounded-xl'. Force 'rounded-none' or 'rounded-sm' in tailwind config or overrides.",
+    "testing": "Add data-testid to all inputs and buttons (e.g., 'start-bot-btn', 'rpc-input')"
+  },
+  "universal_guidelines": [
+      "Avoid 'AI Slop' (generic centered layouts, gradients).",
+      "Use z-index hierarchy for depth.",
+      "NO transition: all.",
+      "NO center-aligning the app container.",
+      "NO emojis.",
+      "Use 'sonner' for toasts.",
+      "Export components as named exports.",
+      "Pages as default exports."
+  ]
+}
