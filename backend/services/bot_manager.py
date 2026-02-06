@@ -1,0 +1,203 @@
+import time
+import asyncio
+import random
+import logging
+from datetime import datetime, timezone
+
+logger = logging.getLogger("bot_manager")
+
+
+class BotManager:
+    def __init__(self, db, config, rpc_manager, hft_gate, parse_service,
+                 strategy_engine, execution_engine, jito_service, position_manager, metrics):
+        self.db = db
+        self.config = config
+        self.rpc_manager = rpc_manager
+        self.hft_gate = hft_gate
+        self.parse_service = parse_service
+        self.strategy_engine = strategy_engine
+        self.execution_engine = execution_engine
+        self.jito_service = jito_service
+        self.position_manager = position_manager
+        self.metrics = metrics
+        self.ws_broadcast = None
+        self.status = "stopped"
+        self.mode = "simulation"
+        self.start_time = None
+        self._tasks = []
+        self._running = False
+
+    async def start(self):
+        if self._running:
+            return {"error": "Already running"}
+        self._running = True
+        self.status = "running"
+        self.start_time = time.time()
+        await self.log("INFO", "bot_manager", f"Bot starting in {self.mode.upper()} mode")
+        self._tasks = [
+            asyncio.create_task(self._simulation_loop()),
+            asyncio.create_task(self._position_eval_loop()),
+            asyncio.create_task(self._metrics_broadcast_loop()),
+        ]
+        await self.log("INFO", "bot_manager", "Bot started successfully")
+        return {"status": "running", "mode": self.mode}
+
+    async def stop(self):
+        self._running = False
+        self.status = "stopped"
+        for task in self._tasks:
+            task.cancel()
+        self._tasks.clear()
+        await self.log("INFO", "bot_manager", "Bot stopped")
+        return {"status": "stopped"}
+
+    async def panic(self):
+        await self.log("WARN", "bot_manager", "PANIC - Closing all positions")
+        await self.position_manager.close_all("panic")
+        await self.stop()
+        return {"status": "panic_executed", "positions_closed": True}
+
+    async def _simulation_loop(self):
+        while self._running:
+            try:
+                await asyncio.sleep(random.uniform(2, 5))
+                if not self._running:
+                    break
+
+                sig = f"sim_sig_{int(time.time()*1000)}_{random.randint(1000,9999)}"
+                await self.log("INFO", "liquidity_monitor", f"New candidate detected sig={sig[:24]}...")
+                self.metrics.increment("wss_events_total")
+
+                entered = await self.hft_gate.try_enter(sig)
+                self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
+
+                if not entered:
+                    self.metrics.increment("hft_dropped_count")
+                    await self.log("WARN", "hft_gate", "DROP - max inflight reached")
+                    continue
+
+                try:
+                    start_parse = time.time()
+                    parsed = await self.parse_service.parse_create_instruction(sig, simulation=True)
+                    parse_ms = (time.time() - start_parse) * 1000
+                    self.metrics.record_latency("parse_latency_ms", parse_ms)
+
+                    if not parsed:
+                        await self.log("WARN", "parse_service", "Parse failed - dropping")
+                        continue
+
+                    await self.log("INFO", "parse_service",
+                                   f"Parsed {parsed.token_name} liq={parsed.liquidity_sol:.2f} SOL in {parse_ms:.0f}ms")
+
+                    eval_result = await self.strategy_engine.evaluate(parsed, simulation=True)
+
+                    if not eval_result["passed"]:
+                        await self.log("INFO", "strategy", f"REJECTED {parsed.token_name}: {eval_result['reason']}")
+                        self.metrics.increment("strategy_rejected")
+                        continue
+
+                    await self.log("TRADE", "strategy",
+                                   f"APPROVED {parsed.token_name} score={eval_result['pump_score']} buy={eval_result['buy_amount_sol']} SOL")
+                    self.metrics.increment("strategy_approved")
+
+                    start_exec = time.time()
+                    exec_result = await self.execution_engine.execute_clone_and_inject(
+                        parsed, eval_result["buy_amount_sol"], simulation=True
+                    )
+                    exec_ms = (time.time() - start_exec) * 1000
+                    self.metrics.record_latency("execution_latency_ms", exec_ms)
+                    self.metrics.record_latency("jito_send_latency_ms", exec_result.get("latency_ms", 0))
+
+                    if exec_result["success"]:
+                        pos_id = await self.position_manager.register_buy(
+                            parsed.mint, parsed.token_name, exec_result["entry_price_sol"],
+                            eval_result["buy_amount_sol"], eval_result["pump_score"],
+                            exec_result["signature"]
+                        )
+                        if pos_id:
+                            await self.log("TRADE", "execution",
+                                           f"BUY {parsed.token_name} @ {exec_result['entry_price_sol']:.6f} SOL")
+                            self.metrics.increment("trades_success")
+
+                        total_ms = (time.time() - start_parse) * 1000
+                        self.metrics.record_latency("wss_to_jito_ms", total_ms)
+                    else:
+                        await self.log("ERROR", "execution", f"EXEC FAILED: {exec_result.get('error')}")
+                        self.metrics.increment("trades_failed")
+
+                finally:
+                    await self.hft_gate.exit(sig)
+                    self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Simulation loop error: {e}")
+                await asyncio.sleep(1)
+
+    async def _position_eval_loop(self):
+        while self._running:
+            try:
+                await asyncio.sleep(0.8)
+                if not self._running:
+                    break
+                await self.position_manager.simulate_price_updates()
+                await self.position_manager.evaluate_positions()
+                self.metrics.set_gauge("positions_open", len(self.position_manager._positions))
+                kpi = self.position_manager.get_kpi()
+                self.metrics.set_gauge("total_pnl_sol", kpi["total_pnl_sol"])
+                self.metrics.set_gauge("win_rate", kpi["win_rate"])
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Position eval error: {e}")
+                await asyncio.sleep(1)
+
+    async def _metrics_broadcast_loop(self):
+        while self._running:
+            try:
+                await asyncio.sleep(1)
+                if not self._running:
+                    break
+                if self.ws_broadcast:
+                    status = self.get_full_status()
+                    positions = self.position_manager.get_open_positions()
+                    await self.ws_broadcast({
+                        "type": "metrics_update",
+                        "data": status,
+                        "positions": positions,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Metrics broadcast error: {e}")
+                await asyncio.sleep(1)
+
+    async def log(self, level: str, service: str, message: str, data: dict = None):
+        log_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": level, "service": service,
+            "message": message, "data": data or {}
+        }
+        if self.ws_broadcast:
+            await self.ws_broadcast({"type": "log", **log_entry})
+        try:
+            await self.db.logs.insert_one({**log_entry, "id": str(time.time())})
+        except Exception:
+            pass
+
+    def get_full_status(self) -> dict:
+        uptime = time.time() - self.start_time if self.start_time else 0
+        return {
+            "status": self.status,
+            "mode": self.mode,
+            "uptime_seconds": round(uptime, 1),
+            "hft_gate": self.hft_gate.get_status(),
+            "positions": self.position_manager.get_kpi(),
+            "execution": self.execution_engine.get_stats(),
+            "strategy": self.strategy_engine.get_stats(),
+            "parse": self.parse_service.get_stats(),
+            "jito": self.jito_service.get_stats(),
+            "metrics": self.metrics.get_snapshot()
+        }
