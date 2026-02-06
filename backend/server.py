@@ -43,6 +43,7 @@ api_router = APIRouter(prefix="/api")
 
 # --- Services ---
 rpc_manager = RpcManagerService()
+wallet_service = WalletService(rpc_manager)
 hft_gate = HftGateService(max_in_flight=3)
 parse_service = ParseService(rpc_manager)
 current_config = get_default_config()
