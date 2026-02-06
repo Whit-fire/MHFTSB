@@ -108,7 +108,13 @@ export default function SetupPage({ onWalletChange }) {
             <Badge className={`font-mono text-[10px] tracking-widest border ${walletStatus.is_unlocked ? 'border-hft-green text-hft-green' : 'border-hft-red text-hft-red'}`}>
               {walletStatus.is_unlocked ? 'UNLOCKED' : 'LOCKED'}
             </Badge>
-            {walletStatus.address && <span className="font-mono text-xs text-hft-muted">{walletStatus.address}</span>}
+            {walletStatus.address && (
+              <span className="font-mono text-xs text-hft-muted flex items-center gap-1">
+                {walletStatus.address}
+                <a href={`https://solscan.io/account/${walletStatus.address}`} target="_blank" rel="noreferrer"
+                   className="text-hft-cyan hover:text-white"><ExternalLink size={10} /></a>
+              </span>
+            )}
             {walletStatus.is_setup && (
               <Button data-testid="reset-wallet-btn" size="sm" variant="ghost" onClick={handleResetWallet}
                       className="ml-auto h-7 px-3 text-hft-red border border-hft-red/30 font-mono text-[10px] uppercase tracking-wider hover:bg-hft-red/10">
