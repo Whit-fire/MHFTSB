@@ -61,6 +61,16 @@ export default function SetupPage() {
     } catch (e) { toast.error('Unlock failed'); }
   };
 
+  const handleResetWallet = async () => {
+    try {
+      await botApi.resetWallet();
+      toast.success('Wallet reset');
+      setWalletStatus({ is_setup: false, is_unlocked: false, address: null });
+      setWalletKey('');
+      setPassphrase('');
+    } catch (e) { toast.error('Reset failed'); }
+  };
+
   const handleSaveSetup = async () => {
     try {
       const rpc_endpoints = (setup?.rpc_endpoints || []).map(ep => ({
