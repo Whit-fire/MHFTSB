@@ -52,6 +52,9 @@ export default function ControlPage({ status, metrics }) {
     try {
       const r = await botApi.toggleMode();
       toast.success(`Mode: ${r.data.mode}`);
+      // Force re-fetch status
+      const s = await botApi.getBotStatus();
+      if (window.__refreshBotStatus) window.__refreshBotStatus(s.data);
     } catch (e) { toast.error('Toggle failed'); }
   };
 
