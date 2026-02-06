@@ -129,10 +129,21 @@ async def encrypt_wallet(body: WalletSetup):
     if not body.private_key or not body.passphrase:
         return {"error": "private_key and passphrase required"}
     try:
-        real_address = wallet_service.derive_address(body.private_key)
+        from services.wallet_service import is_cryptojs_encrypted, decrypt_cryptojs_aes
+        input_key = body.private_key.strip()
+        raw_solana_key = input_key
+
+        if is_cryptojs_encrypted(input_key):
+            logger.info("Detected CryptoJS AES encrypted key, decrypting first...")
+            raw_solana_key = decrypt_cryptojs_aes(input_key, body.passphrase)
+            logger.info(f"Decrypted to raw key ({len(raw_solana_key)} chars)")
+
+        real_address = wallet_service.derive_address(raw_solana_key)
     except Exception as e:
+        logger.error(f"Wallet encrypt error: {e}")
         return {"error": f"Invalid private key format: {e}"}
-    encrypted = SecurityService.encrypt(body.private_key, body.passphrase)
+
+    encrypted = SecurityService.encrypt(raw_solana_key, body.passphrase)
     wallet_state["encrypted_key"] = encrypted
     wallet_state["address"] = real_address
     wallet_state["unlocked"] = True
