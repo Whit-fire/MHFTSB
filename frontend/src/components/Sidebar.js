@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { id: 'setup', label: 'SETUP', icon: Settings },
 ];
 
-export const Sidebar = ({ currentPage, onPageChange, botStatus, wsConnected }) => {
+export const Sidebar = ({ currentPage, onPageChange, botStatus, wsConnected, walletAddress }) => {
   const status = botStatus?.status || 'stopped';
   const mode = botStatus?.mode || 'simulation';
   const gate = botStatus?.hft_gate || {};
