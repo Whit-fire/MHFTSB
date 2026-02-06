@@ -448,10 +448,46 @@ class HFTBotAPITester:
         config = self.test_config_get()
         self.test_config_update(config)
         
-        # Wallet tests
-        wallet_success, wallet_status = self.test_wallet_status()
-        if wallet_success and not wallet_status.get('is_setup'):
-            self.test_wallet_encrypt()
+        # Comprehensive Wallet Tests
+        self.log("\n💼 Testing Wallet Functionality...")
+        
+        # Step 1: Reset wallet to clean state
+        wallet_reset_success = self.test_wallet_reset()
+        
+        # Step 2: Test initial wallet status (should show not setup)
+        initial_status = self.test_wallet_status()
+        
+        # Step 3: Test balance fetching with known Solana address (real RPC call)
+        test_address = "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg2"
+        self.test_wallet_balance_by_address(test_address)
+        
+        # Step 4: Test wallet encryption with proper keypair
+        wallet_data = self.test_wallet_encrypt()
+        
+        if wallet_data:
+            # Step 5: Test wallet status after encryption (should show setup and unlocked)
+            status_after_encrypt = self.test_wallet_status()
+            
+            # Step 6: Test configured wallet balance 
+            self.test_wallet_balance_configured()
+            
+            # Step 7: Reset wallet and test unlock flow
+            if self.test_wallet_reset():
+                # Re-encrypt for unlock test
+                self.test_wallet_encrypt(wallet_data['key'], wallet_data['passphrase'])
+                
+                # Test unlock
+                unlocked_address = self.test_wallet_unlock(wallet_data['passphrase'])
+                
+                if unlocked_address and unlocked_address == wallet_data['address']:
+                    self.log("   ✅ Address consistency check passed")
+                elif unlocked_address:
+                    self.log(f"   ❌ Address mismatch: {wallet_data['address']} vs {unlocked_address}")
+                
+                # Test configured wallet balance after unlock
+                self.test_wallet_balance_configured()
+        else:
+            self.log("   ⚠️  Skipping additional wallet tests due to encryption failure")
         
         # Bot control tests (order matters)
         self.test_bot_start()
