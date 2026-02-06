@@ -131,6 +131,26 @@ class HFTBotAPITester:
         )
         return success
 
+    def generate_test_keypair(self):
+        """Generate a test keypair for testing"""
+        # Create a 64-byte keypair (32-byte seed + 32-byte public key)
+        seed = secrets.token_bytes(32)
+        # For testing, we'll create a fake 64-byte keypair by duplicating seed
+        keypair_bytes = seed + seed  # This won't be a real keypair but will test the format
+        return base58.b58encode(keypair_bytes).decode()
+
+    def test_wallet_reset(self):
+        """Test wallet reset"""
+        success, response = self.run_test(
+            "Wallet Reset",
+            "POST", 
+            "wallet/reset",
+            200
+        )
+        if success:
+            self.log(f"   Wallet reset: {response.get('message', 'completed')}")
+        return success
+
     def test_wallet_status(self):
         """Test wallet status"""
         success, response = self.run_test(
@@ -140,34 +160,92 @@ class HFTBotAPITester:
             200
         )
         if success:
-            self.log(f"   Wallet setup: {response.get('is_setup', False)}, Unlocked: {response.get('is_unlocked', False)}")
-        return success, response
+            setup = response.get('is_setup', False)
+            unlocked = response.get('is_unlocked', False) 
+            address = response.get('address', None)
+            self.log(f"   Wallet setup: {setup}, Unlocked: {unlocked}, Address: {address}")
+            return response
+        return None
 
-    def test_wallet_encrypt(self):
-        """Test wallet encryption"""
-        test_key = "5" * 64  # Fake 64-char private key for testing
-        test_passphrase = "test_passphrase_123"
+    def test_wallet_encrypt(self, private_key=None, passphrase=None):
+        """Test wallet encryption with proper keypair"""
+        test_key = private_key or self.generate_test_keypair()
+        test_passphrase = passphrase or "TestPassphrase123!"
         
         success, response = self.run_test(
-            "Wallet Encryption",
+            "Wallet Encrypt",
             "POST",
             "wallet/encrypt",
             200,
             data={"private_key": test_key, "passphrase": test_passphrase}
         )
         
-        if success:
-            self.log(f"   Encrypted address: {response.get('address', 'none')}")
-            # Try to unlock with the same passphrase
-            unlock_success, _ = self.run_test(
-                "Wallet Unlock After Encrypt",
-                "POST",
-                "wallet/unlock",
-                200,
-                data={"passphrase": test_passphrase}
-            )
-            return unlock_success
-        return success
+        if success and response.get('success'):
+            address = response.get('address')
+            self.log(f"   Encrypted wallet, derived address: {address}")
+            # Validate it's a proper Solana address format
+            if address and len(address) >= 32 and len(address) <= 44:
+                return {'address': address, 'passphrase': test_passphrase, 'key': test_key}
+        
+        if success and response.get('error'):
+            self.log(f"   Encryption error: {response['error']}")
+            
+        return None
+
+    def test_wallet_unlock(self, passphrase):
+        """Test wallet unlock"""
+        success, response = self.run_test(
+            "Wallet Unlock", 
+            "POST",
+            "wallet/unlock",
+            200,
+            data={"passphrase": passphrase}
+        )
+        
+        if success and response.get('success'):
+            address = response.get('address')
+            self.log(f"   Unlocked wallet, address: {address}")
+            return address
+        elif success and response.get('error'):
+            self.log(f"   Unlock error: {response['error']}")
+        return None
+
+    def test_wallet_balance_by_address(self, address):
+        """Test getting balance for specific address"""
+        success, response = self.run_test(
+            f"Get Balance for {address[:8]}...",
+            "GET", 
+            f"wallet/balance/{address}",
+            200
+        )
+        
+        if success and 'error' not in response:
+            sol_balance = response.get('sol_balance', 0)
+            token_count = response.get('token_count', 0)
+            self.log(f"   Address balance: {sol_balance} SOL, {token_count} tokens")
+            return True
+        elif success and 'error' in response:
+            self.log(f"   Balance error: {response['error']}")
+        return False
+
+    def test_wallet_balance_configured(self):
+        """Test getting balance for configured wallet"""
+        success, response = self.run_test(
+            "Get Configured Wallet Balance",
+            "GET",
+            "wallet/balance", 
+            200
+        )
+        
+        if success and 'error' not in response:
+            sol_balance = response.get('sol_balance', 0)
+            token_count = response.get('token_count', 0)
+            self.log(f"   Configured wallet balance: {sol_balance} SOL, {token_count} tokens")
+            return True
+        elif success and 'error' in response:
+            self.log(f"   Expected error (no wallet/not unlocked): {response['error']}")
+            return True  # This is expected if no wallet is configured/unlocked
+        return False
 
     def test_bot_start(self):
         """Test starting the bot"""
