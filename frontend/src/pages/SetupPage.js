@@ -4,11 +4,11 @@ import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Switch } from '../components/ui/switch';
-import { Shield, Server, Zap, Lock } from 'lucide-react';
+import { Shield, Server, Zap, Lock, ExternalLink } from 'lucide-react';
 import botApi from '../lib/api';
 import { toast } from 'sonner';
 
-export default function SetupPage() {
+export default function SetupPage({ onWalletChange }) {
   const [walletKey, setWalletKey] = useState('');
   const [passphrase, setPassphrase] = useState('');
   const [walletStatus, setWalletStatus] = useState({ is_setup: false, is_unlocked: false });
