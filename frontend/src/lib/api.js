@@ -12,6 +12,7 @@ export const botApi = {
   setParam: (path, value) => api.post('/config/set', { path, value }),
   getSetup: () => api.get('/setup'),
   saveSetup: (data) => api.post('/setup', data),
+  resetWallet: () => api.post('/wallet/reset'),
   encryptWallet: (privateKey, passphrase) => api.post('/wallet/encrypt', { private_key: privateKey, passphrase }),
   unlockWallet: (passphrase) => api.post('/wallet/unlock', { passphrase }),
   getWalletStatus: () => api.get('/wallet/status'),
