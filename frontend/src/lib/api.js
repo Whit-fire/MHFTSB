@@ -16,6 +16,7 @@ export const botApi = {
   encryptWallet: (privateKey, passphrase) => api.post('/wallet/encrypt', { private_key: privateKey, passphrase }),
   unlockWallet: (passphrase) => api.post('/wallet/unlock', { passphrase }),
   getWalletStatus: () => api.get('/wallet/status'),
+  getWalletBalance: (address) => address ? api.get(`/wallet/balance/${address}`) : api.get('/wallet/balance'),
   startBot: () => api.post('/bot/start'),
   stopBot: () => api.post('/bot/stop'),
   getBotStatus: () => api.get('/bot/status'),
