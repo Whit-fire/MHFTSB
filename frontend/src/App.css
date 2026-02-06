@@ -1,34 +1,35 @@
-.App-logo {
-    height: 40vmin;
+.scanlines {
+    background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.15) 50%),
+                linear-gradient(90deg, rgba(255,0,0,0.03), rgba(0,255,0,0.01), rgba(0,0,255,0.03));
+    background-size: 100% 2px, 3px 100%;
     pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    opacity: 0.3;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.glow-green {
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.15);
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.glow-red {
+    box-shadow: 0 0 20px rgba(255, 23, 68, 0.15);
 }
 
-.App-link {
-    color: #61dafb;
+.glow-cyan {
+    box-shadow: 0 0 20px rgba(0, 176, 255, 0.15);
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.font-data {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.15s ease-out;
 }
