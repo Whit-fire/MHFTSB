@@ -6,6 +6,8 @@ import time
 import asyncio
 import websockets
 import sys
+import base58
+import secrets
 from datetime import datetime
 from urllib.parse import urlparse
 
