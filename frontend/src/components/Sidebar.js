@@ -1,4 +1,4 @@
-import { Activity, Settings, BarChart3, Terminal, Briefcase } from 'lucide-react';
+import { Activity, Settings, BarChart3, Terminal, Briefcase, Wallet } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'control', label: 'CONTROL', icon: Activity },
