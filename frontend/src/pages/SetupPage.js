@@ -70,6 +70,7 @@ export default function SetupPage({ onWalletChange }) {
       setWalletStatus({ is_setup: false, is_unlocked: false, address: null });
       setWalletKey('');
       setPassphrase('');
+      if (onWalletChange) onWalletChange(null);
     } catch (e) { toast.error('Reset failed'); }
   };
 
