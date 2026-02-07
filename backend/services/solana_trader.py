@@ -588,7 +588,12 @@ class SolanaTrader:
                 parsed_create_data, buy_amount_sol, slippage_pct, blockhash_ctx
             )
             if not tx_data:
-                return {"success": False, "error": "Failed to clone & inject TX"}
+                return {
+                    "success": False,
+                    "error": "Failed to clone & inject TX",
+                    "error_type": "clone_inject_failed",
+                    "error_expected": False
+                }
 
             send_result = await self.send_transaction(tx_data["tx_base64"])
             latency = (time.time() - start) * 1000
