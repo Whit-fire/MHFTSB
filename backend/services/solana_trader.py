@@ -601,3 +601,144 @@ class SolanaTrader:
         except Exception as e:
             logger.error(f"_extract_pump_accounts failed: {e}")
             return None
+
+
+    async def build_sell_transaction(
+        self, mint_str: str, bonding_curve_str: str,
+        assoc_bonding_curve_str: str, token_amount: int,
+        slippage_pct: float = 25.0, blockhash_ctx: Dict = None,
+        token_program_str: str = None, creator_str: str = None
+    ) -> Optional[Dict]:
+        """Build a sell transaction for pump.fun tokens."""
+        if not self._keypair:
+            if not self.load_keypair_from_wallet():
+                logger.error("No keypair loaded")
+                return None
+
+        tp = TOKEN_2022_PROGRAM
+        if token_program_str == TOKEN_PROGRAM_STR:
+            tp = TOKEN_PROGRAM
+
+        try:
+            mint = Pubkey.from_string(mint_str)
+            bonding_curve = Pubkey.from_string(bonding_curve_str)
+            assoc_bc = Pubkey.from_string(assoc_bonding_curve_str)
+            seller = self._keypair.pubkey()
+            seller_ata = get_associated_token_address(seller, mint, tp)
+
+            # Get creator for creator_vault derivation
+            creator = None
+            if creator_str:
+                creator = Pubkey.from_string(creator_str)
+            else:
+                creator = await self.fetch_bonding_curve_creator(bonding_curve_str)
+
+            if not blockhash_ctx:
+                blockhash_ctx = await self.get_latest_blockhash()
+            if not blockhash_ctx or not blockhash_ctx.get("blockhash"):
+                logger.error("Failed to get blockhash")
+                return None
+
+            # Derive creator_vault PDA
+            if creator:
+                creator_vault, _ = Pubkey.find_program_address(
+                    [b"creator-vault", bytes(creator)], PUMP_FUN_PROGRAM
+                )
+            else:
+                logger.error("No creator available for creator_vault derivation")
+                return None
+
+            # Derive user_volume_accumulator PDA
+            user_volume_acc, _ = Pubkey.find_program_address(
+                [b"user_volume_accumulator", bytes(seller)], PUMP_FUN_PROGRAM
+            )
+
+            # Calculate min SOL output with slippage
+            # Estimate: token_amount / 30 (inverse of buy ratio) with slippage protection
+            estimated_sol = token_amount / 30 / 1e9
+            min_sol_lamports = int(estimated_sol * 1e9 * (1 - slippage_pct / 100))
+
+            ixs = [
+                set_compute_unit_limit(200_000),
+                set_compute_unit_price(500_000),
+                build_sell_instruction(
+                    seller, mint, bonding_curve, assoc_bc, seller_ata,
+                    token_amount, min_sol_lamports,
+                    creator_vault, user_volume_acc, tp
+                ),
+            ]
+
+            if self.jito_tip_account:
+                tip_lamports = int(self.tip_amount_sol * 1e9)
+                tip_ix = transfer(TransferParams(
+                    from_pubkey=seller,
+                    to_pubkey=Pubkey.from_string(self.jito_tip_account),
+                    lamports=tip_lamports
+                ))
+                ixs.append(tip_ix)
+
+            recent_hash = Hash.from_string(blockhash_ctx["blockhash"])
+            msg = Message.new_with_blockhash(ixs, seller, recent_hash)
+            tx = Transaction.new_unsigned(msg)
+            tx.sign([self._keypair], recent_hash)
+
+            tx_bytes = bytes(tx)
+            import base64
+            tx_b64 = base64.b64encode(tx_bytes).decode()
+
+            logger.info(f"Built sell TX for mint={mint_str[:8]}... tokens={token_amount} tip={self.tip_amount_sol}")
+            return {
+                "tx_bytes": tx_bytes,
+                "tx_base64": tx_b64,
+                "mint": mint_str,
+                "seller": str(seller),
+                "seller_ata": str(seller_ata),
+                "token_amount": token_amount,
+                "blockhash": blockhash_ctx["blockhash"],
+                "rpc_url": blockhash_ctx.get("rpc_url"),
+            }
+
+        except Exception as e:
+            logger.error(f"build_sell_transaction failed: {e}")
+            return None
+
+    async def execute_sell(
+        self, mint_str: str, bonding_curve_str: str,
+        assoc_bonding_curve_str: str, token_amount: int,
+        slippage_pct: float = 25.0, token_program_str: str = None,
+        creator_str: str = None
+    ) -> Dict:
+        """Execute a sell transaction for pump.fun tokens."""
+        start = time.time()
+        tp_label = "T22" if (not token_program_str or token_program_str == TOKEN_2022_PROGRAM_STR) else "SPL"
+        logger.info(f"execute_sell: mint={mint_str[:12]}... tokens={token_amount} token_program={tp_label}")
+        try:
+            # Get latest blockhash
+            blockhash_ctx = await self.get_latest_blockhash()
+            if not blockhash_ctx:
+                return {"success": False, "error": "Failed to get blockhash"}
+
+            tx_data = await self.build_sell_transaction(
+                mint_str, bonding_curve_str, assoc_bonding_curve_str,
+                token_amount, slippage_pct, blockhash_ctx, token_program_str,
+                creator_str
+            )
+            if not tx_data:
+                return {"success": False, "error": "Failed to build sell TX"}
+
+            sig = await self.send_transaction(tx_data["tx_base64"])
+            latency = (time.time() - start) * 1000
+
+            if sig:
+                logger.info(f"execute_sell SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
+                return {
+                    "success": True, "signature": sig,
+                    "latency_ms": latency, "mint": mint_str,
+                    "token_amount": token_amount,
+                }
+            return {"success": False, "error": "Send failed", "latency_ms": latency}
+
+        except Exception as e:
+            logger.error(f"execute_sell failed: {e}", exc_info=True)
+            return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
+
