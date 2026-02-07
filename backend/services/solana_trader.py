@@ -215,15 +215,13 @@ class SolanaTrader:
             buyer_ata = get_associated_token_address(buyer, mint, tp)
 
             # Fetch blockhash and bonding curve creator in parallel
-            blockhash_task = self.get_latest_blockhash() if not blockhash_ctx else asyncio.coroutine(lambda: blockhash_ctx)()
-            creator_task = self.fetch_bonding_curve_creator(bonding_curve_str)
-
             if not blockhash_ctx:
                 blockhash_ctx, creator = await asyncio.gather(
-                    self.get_latest_blockhash(), creator_task
+                    self.get_latest_blockhash(),
+                    self.fetch_bonding_curve_creator(bonding_curve_str)
                 )
             else:
-                creator = await creator_task
+                creator = await self.fetch_bonding_curve_creator(bonding_curve_str)
 
             if not blockhash_ctx or not blockhash_ctx.get("blockhash"):
                 logger.error("Failed to get blockhash")
