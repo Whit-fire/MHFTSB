@@ -110,7 +110,7 @@ class LiquidityMonitorService:
             "jsonrpc": "2.0",
             "id": 1,
             "method": "getSignaturesForAddress",
-            "params": [PUMP_FUN_PROGRAM, {"limit": 20, "commitment": "confirmed"}]
+            "params": [PUMP_FUN_PROGRAM, {"limit": 5, "commitment": "confirmed"}]
         }
         try:
             async with aiohttp.ClientSession() as session:
