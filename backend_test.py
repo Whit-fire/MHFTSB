@@ -610,15 +610,33 @@ class HFTBotAPITester:
 
     def run_all_tests(self):
         """Run complete test suite"""
-        self.log("🚀 Starting HFT Bot API Test Suite")
+        self.log("🚀 Starting HFT Bot API Test Suite - P0 Fix Verification")
         self.log(f"Testing against: {self.base_url}")
         
-        # Basic connectivity
+        # P0 Fix Specific Tests
+        self.log("\n🔧 P0 Fix Verification Tests...")
+        
+        # Test 1: Import and syntax
+        self.test_solana_trader_import()
+        
+        # Test 2: Health check
         if not self.test_health():
             self.log("❌ Health check failed - may indicate server issues", "ERROR")
         
-        # Configuration tests
+        # Test 3: Configuration and buy amount
         config = self.test_config_get()
+        self.test_configuration_buy_amount()
+        
+        # Test 4: Dashboard metrics
+        self.test_dashboard_metrics()
+        
+        # Test 5: Simulation mode comprehensive test
+        self.test_simulation_mode_comprehensive()
+        
+        # Additional standard tests
+        self.log("\n📋 Standard API Tests...")
+        
+        # Configuration tests
         self.test_config_update(config)
         
         # Comprehensive Wallet Tests
@@ -662,12 +680,8 @@ class HFTBotAPITester:
         else:
             self.log("   ⚠️  Skipping additional wallet tests due to encryption failure")
         
-        # Bot control tests (order matters)
-        self.test_bot_start()
-        
-        # Allow bot to run and generate some data
-        time.sleep(3)
-        
+        # Additional bot tests (but not starting bot again since we tested simulation mode above)
+        self.log("\n🤖 Additional Bot Tests...")
         bot_status = self.test_bot_status()
         self.test_positions()
         self.test_metrics()
@@ -684,6 +698,23 @@ class HFTBotAPITester:
             asyncio.set_event_loop(loop)
             loop.run_until_complete(self.test_websocket())
             loop.close()
+
+    def test_logs(self):
+        """Test logs endpoint"""
+        success, response = self.run_test(
+            "Get Logs",
+            "GET",
+            "logs",
+            200
+        )
+        
+        if success:
+            logs = response.get('logs', [])
+            self.log(f"   Recent logs: {len(logs)} entries")
+            if logs:
+                self.log(f"   Latest log: {logs[-1].get('message', 'N/A')[:50]}...")
+                
+        return success
 
     def print_summary(self):
         """Print test results summary"""
