@@ -744,6 +744,10 @@ class SolanaTrader:
                 else:
                     keys_list.append(str(ak))
 
+            logs = meta.get("logMessages", [])
+            if not any("Instruction: Create" in line or "InitializeMint" in line for line in logs):
+                return None, "no_create_discriminator"
+
             # Detect which token program is used in this transaction
             token_program_str = TOKEN_2022_PROGRAM_STR  # default to Token-2022
             if TOKEN_PROGRAM_STR in keys_list and TOKEN_2022_PROGRAM_STR not in keys_list:
