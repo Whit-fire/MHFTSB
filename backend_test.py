@@ -763,7 +763,130 @@ class HFTBotAPITester:
             self.tests_run += 1
             return False
 
-    def test_simulation_mode_comprehensive(self):
+    def test_parse_service_comprehensive(self):
+        """Comprehensive ParseService test - start bot, monitor logs, check metrics"""
+        self.log("\n🔧 COMPREHENSIVE ParseService Test (WARNING Spam Elimination)...")
+        
+        # Step 1: Ensure bot is stopped first
+        self.run_test("Stop Bot (cleanup)", "POST", "bot/stop", 200)
+        time.sleep(1)
+        
+        # Step 2: Get initial metrics baseline
+        initial_success, initial_response = self.run_test(
+            "Get Initial Metrics Baseline",
+            "GET",
+            "metrics",
+            200
+        )
+        
+        initial_parse_dropped = 0
+        initial_parse_success = 0
+        if initial_success:
+            counters = initial_response.get('counters', {})
+            initial_parse_dropped = counters.get('parse_dropped', 0)
+            initial_parse_success = counters.get('parse_success', 0)
+            self.log(f"   Initial metrics - dropped: {initial_parse_dropped}, success: {initial_parse_success}")
+        
+        # Step 3: Start bot in simulation mode
+        success = self.test_bot_start("simulation")
+        if not success:
+            self.log("❌ Failed to start bot for ParseService test")
+            return False
+        
+        # Step 4: Let bot run for 15-20 seconds to generate parsing activity
+        self.log("   Letting bot run for 18 seconds to generate parse activity...")
+        time.sleep(18)
+        
+        # Step 5: Check logs for WARNING spam
+        self.log("   Checking logs for WARNING spam...")
+        logs_clean = self.test_parse_service_logs_clean()
+        
+        # Step 6: Check metrics for parse_dropped and parse_success
+        self.log("   Checking ParseService metrics...")
+        metrics_success = self.test_parse_service_metrics()
+        
+        # Step 7: Get final metrics to verify activity
+        final_success, final_response = self.run_test(
+            "Get Final Metrics After ParseService Test",
+            "GET",
+            "metrics",
+            200
+        )
+        
+        metrics_increased = False
+        if final_success:
+            counters = final_response.get('counters', {})
+            final_parse_dropped = counters.get('parse_dropped', 0)
+            final_parse_success = counters.get('parse_success', 0)
+            
+            dropped_increase = final_parse_dropped - initial_parse_dropped
+            success_increase = final_parse_success - initial_parse_success
+            
+            self.log(f"   Metrics change - dropped: +{dropped_increase}, success: +{success_increase}")
+            
+            if dropped_increase > 0 or success_increase > 0:
+                metrics_increased = True
+                self.log("✅ ParseService metrics increased (bot is actively parsing)")
+                
+                # Verify the ratio is reasonable (80-90% success expected)
+                total_new = dropped_increase + success_increase
+                if total_new > 0:
+                    success_ratio = (success_increase / total_new) * 100
+                    self.log(f"   New parse success ratio: {success_ratio:.1f}%")
+                    
+                    if success_ratio >= 70:
+                        self.log("✅ Parse success ratio is healthy")
+                    else:
+                        self.log(f"⚠️  Parse success ratio is low: {success_ratio:.1f}%")
+            else:
+                self.log("⚠️  No increase in parse metrics (bot may not be processing CREATE events)")
+        
+        # Step 8: Check bot status
+        status_success, status_response = self.run_test(
+            "Bot Status During ParseService Test",
+            "GET",
+            "bot/status",
+            200
+        )
+        
+        bot_running = False
+        if status_success:
+            status = status_response.get('status', 'unknown')
+            mode = status_response.get('mode', 'unknown')
+            uptime = status_response.get('uptime_seconds', 0)
+            
+            self.log(f"   Bot status: {status}, Mode: {mode}, Uptime: {uptime}s")
+            
+            if status == "running" and mode == "simulation":
+                bot_running = True
+                self.log("✅ Bot running correctly during ParseService test")
+            else:
+                self.log(f"❌ Unexpected bot status/mode: {status}/{mode}")
+        
+        # Step 9: Stop bot
+        stop_success = self.run_test("Stop Bot After ParseService Test", "POST", "bot/stop", 200)
+        
+        # Step 10: Final assessment
+        all_passed = logs_clean and metrics_success and bot_running and stop_success
+        
+        if all_passed:
+            self.log("✅ ParseService comprehensive test PASSED")
+            self.log("   - No WARNING spam in logs")
+            self.log("   - parse_dropped and parse_success metrics working")
+            self.log("   - Bot operates normally with silent drops")
+        else:
+            issues = []
+            if not logs_clean:
+                issues.append("WARNING spam still present")
+            if not metrics_success:
+                issues.append("ParseService metrics missing")
+            if not bot_running:
+                issues.append("Bot not running properly")
+            
+            self.log(f"❌ ParseService comprehensive test FAILED: {', '.join(issues)}")
+            self.critical_issues.append(f"ParseService test failed: {', '.join(issues)}")
+        
+        return all_passed
         """Test bot in simulation mode to verify no regression"""
         self.log("\n🤖 Testing Simulation Mode (P0 Fix Verification)...")
         
