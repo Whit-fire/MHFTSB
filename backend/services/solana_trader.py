@@ -206,9 +206,10 @@ class SolanaTrader:
             ep = self.rpc_manager.get_tx_fetch_connection()
             url = ep.url if ep else None
         if not url:
-            logger.error("No RPC URL for sending")
+            logger.error("No RPC URL for sending transaction")
             return None
 
+        logger.info(f"Sending TX via {url[:50]}...")
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -221,11 +222,11 @@ class SolanaTrader:
                     data = await resp.json()
                     if "result" in data:
                         sig = data["result"]
-                        logger.info(f"TX sent! signature={sig}")
+                        logger.info(f"TX sent OK! signature={sig[:20]}...")
                         return sig
                     else:
                         err = data.get("error", {})
-                        logger.error(f"sendTransaction error: {err}")
+                        logger.error(f"sendTransaction error: {json.dumps(err) if isinstance(err, dict) else err}")
                         return None
         except Exception as e:
             logger.error(f"send_transaction failed: {e}")
