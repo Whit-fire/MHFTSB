@@ -253,30 +253,49 @@ class SolanaTrader:
             logger.error(f"execute_buy failed: {e}")
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
-    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None) -> Optional[Dict]:
+    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 4) -> Optional[Dict]:
         url = rpc_url
         if not url:
             ep = self.rpc_manager.get_tx_fetch_connection()
             url = ep.url if ep else None
         if not url:
+            logger.error("No RPC URL available for getTransaction")
             return None
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
-                    "params": [signature, {"encoding": "jsonParsed", "commitment": "confirmed",
-                                           "maxSupportedTransactionVersion": 0}]
-                }
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                    data = await resp.json()
-                    tx_data = data.get("result")
-                    if not tx_data:
-                        return None
-                    return self._extract_pump_accounts(tx_data)
-        except Exception as e:
-            logger.error(f"fetch_and_parse_tx failed: {e}")
-            return None
+        for attempt in range(max_retries):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    payload = {
+                        "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
+                        "params": [signature, {"encoding": "jsonParsed", "commitment": "processed",
+                                               "maxSupportedTransactionVersion": 0}]
+                    }
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        data = await resp.json()
+                        if "error" in data:
+                            logger.warning(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
+                            await asyncio.sleep(0.3)
+                            continue
+                        tx_data = data.get("result")
+                        if not tx_data:
+                            if attempt < max_retries - 1:
+                                logger.info(f"TX {signature[:16]}... not indexed yet (attempt {attempt+1}), retrying...")
+                                await asyncio.sleep(0.4 * (attempt + 1))
+                                ep = self.rpc_manager.get_tx_fetch_connection()
+                                if ep:
+                                    url = ep.url
+                                continue
+                            logger.warning(f"TX {signature[:16]}... not found after {max_retries} attempts")
+                            return None
+                        parsed = self._extract_pump_accounts(tx_data)
+                        if parsed:
+                            logger.info(f"Parsed TX {signature[:16]}... on attempt {attempt+1}: mint={parsed['mint'][:12]}...")
+                        return parsed
+            except Exception as e:
+                logger.error(f"fetch_and_parse_tx attempt {attempt+1} failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.3)
+        return None
 
     def _extract_pump_accounts(self, tx_data: Dict) -> Optional[Dict]:
         try:
