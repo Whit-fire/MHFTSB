@@ -80,6 +80,7 @@ class BotManager:
             return
         sig = candidate["signature"]
         self.metrics.increment("wss_events_total")
+        logger.info(f"LIVE CREATE detected: {sig[:20]}...")
         await self.log("INFO", "liquidity_monitor", f"LIVE CREATE detected: {sig[:20]}...")
 
         entered = await self.hft_gate.try_enter(sig)
@@ -93,6 +94,7 @@ class BotManager:
             start_t = time.time()
 
             if not self.solana_trader:
+                logger.error("No solana_trader configured")
                 await self.log("ERROR", "execution", "No solana_trader configured")
                 return
 
@@ -101,12 +103,14 @@ class BotManager:
             self.metrics.record_latency("parse_latency_ms", parse_ms)
 
             if not parsed:
-                await self.log("WARN", "parse_service", f"Could not parse TX {sig[:16]}...")
+                logger.warning(f"Could not parse TX {sig[:16]}... after {parse_ms:.0f}ms")
+                await self.log("WARN", "parse_service", f"Could not parse TX {sig[:16]}... ({parse_ms:.0f}ms)")
                 return
 
             mint = parsed["mint"]
             bc = parsed["bonding_curve"]
             abc = parsed.get("associated_bonding_curve", "")
+            logger.info(f"Parsed CREATE mint={mint[:12]}... bc={bc[:12]}... in {parse_ms:.0f}ms")
             await self.log("INFO", "parse_service",
                            f"Parsed CREATE mint={mint[:8]}... bc={bc[:8]}... in {parse_ms:.0f}ms")
 
@@ -128,14 +132,16 @@ class BotManager:
                 total_ms = (time.time() - start_t) * 1000
                 self.metrics.record_latency("wss_to_jito_ms", total_ms)
                 self.metrics.increment("trades_success")
+                logger.info(f"BUY SUCCESS mint={mint[:12]}... sig={result['signature'][:16]}... latency={total_ms:.0f}ms")
                 await self.log("TRADE", "execution",
                                f"BUY LIVE mint={mint[:8]}... sig={result['signature'][:16]}... latency={total_ms:.0f}ms")
             else:
                 self.metrics.increment("trades_failed")
+                logger.error(f"BUY FAILED mint={mint[:12]}...: {result.get('error')}")
                 await self.log("ERROR", "execution", f"BUY FAILED: {result.get('error')}")
 
         except Exception as e:
-            logger.error(f"Live candidate error: {e}")
+            logger.error(f"Live candidate error: {e}", exc_info=True)
             await self.log("ERROR", "bot_manager", f"Live error: {e}")
         finally:
             await self.hft_gate.exit(sig)
