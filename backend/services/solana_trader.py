@@ -702,7 +702,7 @@ class SolanaTrader:
             logger.error(f"execute_buy failed: {e}", exc_info=True)
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
-    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 6) -> Optional[Dict]:
+    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 8) -> Optional[Dict]:
         rpcs = []
         if rpc_url:
             rpcs.append(rpc_url)
