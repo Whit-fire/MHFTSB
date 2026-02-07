@@ -101,3 +101,35 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Solana HFT trading bot pour pump.fun. Le trading en direct échoue avec l'erreur AccountOwnedByWrongProgram sur le compte bonding_curve. Le bot doit attendre que pump.fun initialise correctement le compte avant d'envoyer la transaction d'achat."
+
+backend:
+  - task: "Race condition fix - Attendre l'initialisation du bonding_curve avant transaction"
+    implemented: true
+    working: "NA"
+    file: "backend/services/solana_trader.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Ajout de la fonction wait_for_bonding_curve_init() qui vérifie que le compte bonding_curve est possédé par le programme pump.fun (6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P) avant d'envoyer la transaction. Délai adaptatif 250-400ms, timeout 8s, rotation RPC. Fonction appelée dans execute_buy() avant build_buy_transaction()."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Race condition fix - Attendre l'initialisation du bonding_curve avant transaction"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Correction P0 implémentée. La fonction wait_for_bonding_curve_init() a été ajoutée pour résoudre l'erreur AccountOwnedByWrongProgram. Elle poll le RPC pour vérifier que bonding_curve est possédé par pump.fun avant d'exécuter la transaction. IMPORTANT: Pour tester en mode live, le wallet doit être financé avec du SOL (mainnet). Le bot doit être démarré en mode 'live' via l'API /api/start avec mode=live. Alternativement, vérifier que la fonction s'importe correctement et que la logique ne casse pas le mode simulation."
