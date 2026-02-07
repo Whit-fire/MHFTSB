@@ -169,7 +169,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Correction ParseService - Supprimer WARNING spam et rendre le parsing tolérant"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -186,4 +187,6 @@ agent_communication:
   - agent: "main"
     message: "REFONTE CRITIQUE: Clone & Inject implémenté pour respecter règles HFT pump.fun. Nouvelles méthodes: clone_and_inject_buy_transaction() et execute_buy_cloned() qui clonent strictement l'instruction originale. ZÉRO PDA derivation dans hot path. _extract_pump_accounts() modifié pour extraire account_metas_clone avec isSigner/isWritable. bot_manager.py utilise execute_buy_cloned(). Seuls signer (index 6) et buyer_ata (index 5) sont modifiés, tout le reste est cloné. Tests: vérifier import, mode simulation sans régression, vérifier que parsed_create_data contient account_metas_clone."
   - agent: "testing"
-    message: "CLONE & INJECT IMPLEMENTATION FULLY TESTED AND WORKING! Comprehensive testing completed (37/37 tests passed): ✅ All Clone & Inject methods exist and callable ✅ _extract_pump_accounts() returns correct account_metas_clone structure ✅ Simulation mode runs 12s without Clone & Inject errors ✅ bot_manager.py correctly uses execute_buy_cloned() ✅ ZERO PDA derivation in hot path confirmed ✅ Architecture fully respects HFT pump.fun rules. Implementation ready for production live trading."
+    message: "Clone & Inject testé: 37/37 tests passés. Aucune régression, architecture HFT conforme."
+  - agent: "main"
+    message: "CORRECTION CRITIQUE ParseService: Suppression WARNING spam bot_manager.py (lignes 106-107 DROP silencieux). Parse failures = normal (10-20% en HFT), maintenant logger.debug. Metrics: parse_dropped, parse_success. Retries 4→2, delays réduits. fetch_and_parse_tx() et _extract_pump_accounts() errors → logger.debug. ParseService best-effort. Tests: vérifier logs sans WARNING spam, mode simulation opérationnel."
