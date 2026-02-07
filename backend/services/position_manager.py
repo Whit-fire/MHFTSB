@@ -49,7 +49,7 @@ class PositionData:
         except Exception:
             self.current_price_sol = 0.0
         if self.entry_price_sol > 0:
-            self.pnl_percent = ((new_price - self.entry_price_sol) / self.entry_price_sol) * 100
+            self.pnl_percent = ((self.current_price_sol - self.entry_price_sol) / self.entry_price_sol) * 100
         self.pnl_sol = (self.current_price_sol - self.entry_price_sol) * (self.amount_sol / max(self.entry_price_sol, 0.000001))
         if self.current_price_sol > self.trailing_high:
             self.trailing_high = self.current_price_sol
