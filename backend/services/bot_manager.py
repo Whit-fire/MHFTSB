@@ -131,7 +131,7 @@ class BotManager:
                 # Calculate token_amount for potential sell later
                 token_amount = int(buy_amount * 1e9 * 30)  # Approximate token amount from SOL
                 
-                pos_id = await self.position_manager.register_buy(
+                await self.position_manager.register_buy(
                     mint, mint[:8] + "...", result.get("entry_price_sol", buy_amount),
                     buy_amount, 80.0, result["signature"],
                     bonding_curve=bc, associated_bonding_curve=abc,
