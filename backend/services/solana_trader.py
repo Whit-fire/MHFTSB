@@ -270,15 +270,18 @@ class SolanaTrader:
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
     async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 4) -> Optional[Dict]:
-        url = rpc_url
-        if not url:
-            ep = self.rpc_manager.get_tx_fetch_connection()
-            url = ep.url if ep else None
-        if not url:
+        rpcs = []
+        if rpc_url:
+            rpcs.append(rpc_url)
+        for ep in self.rpc_manager.get_all_available_rpcs():
+            if ep.url not in rpcs:
+                rpcs.append(ep.url)
+        if not rpcs:
             logger.error("No RPC URL available for getTransaction")
             return None
 
         for attempt in range(max_retries):
+            url = rpcs[attempt % len(rpcs)]
             try:
                 async with aiohttp.ClientSession() as session:
                     payload = {
@@ -289,17 +292,21 @@ class SolanaTrader:
                     async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                         data = await resp.json()
                         if "error" in data:
+                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                            if err_code == -32401:
+                                self.rpc_manager.mark_auth_failure(url)
+                                rpcs = [u for u in rpcs if u != url]
+                                if not rpcs:
+                                    logger.error("All RPCs have auth failures")
+                                    return None
+                                continue
                             logger.warning(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
                             await asyncio.sleep(0.3)
                             continue
                         tx_data = data.get("result")
                         if not tx_data:
                             if attempt < max_retries - 1:
-                                logger.info(f"TX {signature[:16]}... not indexed yet (attempt {attempt+1}), retrying...")
                                 await asyncio.sleep(0.4 * (attempt + 1))
-                                ep = self.rpc_manager.get_tx_fetch_connection()
-                                if ep:
-                                    url = ep.url
                                 continue
                             logger.warning(f"TX {signature[:16]}... not found after {max_retries} attempts")
                             return None
