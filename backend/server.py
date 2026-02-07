@@ -201,9 +201,12 @@ async def get_wallet_status():
         if saved:
             wallet_state["encrypted_key"] = saved.get("encrypted_key")
             wallet_state["address"] = saved.get("address")
+    is_unlocked = wallet_state["unlocked"] and wallet_service._key_bytes is not None
+    if not is_unlocked:
+        wallet_state["unlocked"] = False
     return WalletStatus(
         is_setup=wallet_state["encrypted_key"] is not None,
-        is_unlocked=wallet_state["unlocked"],
+        is_unlocked=is_unlocked,
         address=wallet_state["address"]
     )
 
