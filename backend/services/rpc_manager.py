@@ -112,7 +112,7 @@ class RpcManagerService:
         for ep in self.fast_pool + self.cold_pool:
             if ep.url == url:
                 ep.health_score = 0
-                ep.cooldown_until = time.time() + 300  # 5 min cooldown
+                ep.cooldown_until = time.time() + 3600  # 1h cooldown
                 logger.warning(f"RPC auth failure, cooldown 5min: {url[:50]}...")
                 break
 
