@@ -128,9 +128,14 @@ class BotManager:
             self.metrics.record_latency("jito_send_latency_ms", exec_ms)
 
             if result["success"]:
+                # Calculate token_amount for potential sell later
+                token_amount = int(buy_amount * 1e9 * 30)  # Approximate token amount from SOL
+                
                 pos_id = await self.position_manager.register_buy(
                     mint, mint[:8] + "...", result.get("entry_price_sol", buy_amount),
-                    buy_amount, 80.0, result["signature"]
+                    buy_amount, 80.0, result["signature"],
+                    bonding_curve=bc, associated_bonding_curve=abc,
+                    token_program=token_prog, creator=creator, token_amount=token_amount
                 )
                 total_ms = (time.time() - start_t) * 1000
                 self.metrics.record_latency("wss_to_jito_ms", total_ms)
