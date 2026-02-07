@@ -333,30 +333,50 @@ async def force_sell(position_id: str):
     # If in live mode, execute a real sell transaction
     if bot_manager.mode == "live" and solana_trader:
         try:
+            # Check if we have all required data for sell
+            if not all([pos.bonding_curve, pos.associated_bonding_curve, pos.token_amount]):
+                logger.warning(f"Position {position_id} missing sell data (bonding_curve/token_amount)")
+                result = await position_manager.close_position(position_id, "force_sell_no_data")
+                return {
+                    "success": False, 
+                    "error": "Position missing bonding_curve or token_amount data",
+                    "position": result
+                }
+            
             logger.info(f"Executing live sell for position {position_id} ({pos.token_name})")
             
-            # We need bonding_curve, assoc_bonding_curve, and creator info
-            # These should ideally be stored with the position, but for now we'll need to derive/fetch them
-            # For demonstration, we'll attempt to get token_amount from the position
+            # Execute the on-chain sell
+            sell_result = await solana_trader.execute_sell(
+                mint_str=pos.token_mint,
+                bonding_curve_str=pos.bonding_curve,
+                assoc_bonding_curve_str=pos.associated_bonding_curve,
+                token_amount=pos.token_amount,
+                slippage_pct=25.0,
+                token_program_str=pos.token_program,
+                creator_str=pos.creator
+            )
             
-            # Calculate token amount from amount_sol and entry_price
-            # This is an approximation; real implementation should track actual token balance
-            token_amount = int(pos.amount_sol / pos.entry_price_sol * 30 * 1e9)
-            
-            # Note: We need bonding_curve and associated_bonding_curve addresses
-            # In a production system, these should be stored with the position during buy
-            # For now, return an error explaining what's needed
-            
-            logger.warning("Sell endpoint called but missing bonding_curve data")
-            result = await position_manager.close_position(position_id, "force_sell_attempted")
-            return {
-                "success": True, 
-                "position": result,
-                "note": "Position closed in manager. On-chain sell requires bonding_curve data to be stored with position."
-            }
+            if sell_result["success"]:
+                # Close the position after successful sell
+                result = await position_manager.close_position(position_id, "force_sell_success")
+                logger.info(f"Sell executed successfully: {sell_result['signature'][:16]}...")
+                return {
+                    "success": True,
+                    "signature": sell_result["signature"],
+                    "latency_ms": sell_result["latency_ms"],
+                    "position": result
+                }
+            else:
+                # Sell failed, keep position open
+                logger.error(f"Sell failed: {sell_result.get('error')}")
+                return {
+                    "success": False,
+                    "error": sell_result.get("error"),
+                    "latency_ms": sell_result.get("latency_ms")
+                }
             
         except Exception as e:
-            logger.error(f"Force sell error: {e}")
+            logger.error(f"Force sell error: {e}", exc_info=True)
             return {"error": f"Sell failed: {str(e)}"}
     else:
         # Simulation mode or no trader configured
