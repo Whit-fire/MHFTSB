@@ -555,11 +555,27 @@ class SolanaTrader:
 
             if sig:
                 logger.info(f"execute_buy_cloned SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
+                
+                # VERIFICATION ON-CHAIN: Check if TX was confirmed and tokens received
+                logger.info(f"Verifying transaction on-chain for mint={mint_str[:12]}...")
+                verification = await self.verify_transaction_onchain(sig, mint_str, max_wait=15)
+                
+                if verification.get("confirmed"):
+                    if verification.get("success"):
+                        token_received = verification.get("token_received", False)
+                        token_change = verification.get("token_amount_change", 0)
+                        logger.info(f"✅ TX CONFIRMED on-chain! Token received: {token_received}, amount: {token_change}")
+                    else:
+                        logger.error(f"❌ TX FAILED on-chain: {verification.get('error')}")
+                else:
+                    logger.warning(f"⚠️ TX verification incomplete: {verification.get('error')}")
+                
                 return {
                     "success": True, "signature": sig,
                     "latency_ms": latency, "mint": mint_str,
                     "amount_sol": buy_amount_sol,
                     "entry_price_sol": buy_amount_sol,
+                    "verification": verification,
                 }
             return {"success": False, "error": "Send failed", "latency_ms": latency}
 
