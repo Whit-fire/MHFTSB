@@ -327,7 +327,8 @@ class SolanaTrader:
     async def execute_buy(
         self, mint_str: str, bonding_curve_str: str,
         assoc_bonding_curve_str: str, buy_amount_sol: float,
-        slippage_pct: float = 25.0, token_program_str: str = None
+        slippage_pct: float = 25.0, token_program_str: str = None,
+        creator_str: str = None
     ) -> Dict:
         start = time.time()
         tp_label = "T22" if (not token_program_str or token_program_str == TOKEN_2022_PROGRAM_STR) else "SPL"
@@ -339,7 +340,8 @@ class SolanaTrader:
 
             tx_data = await self.build_buy_transaction(
                 mint_str, bonding_curve_str, assoc_bonding_curve_str,
-                buy_amount_sol, slippage_pct, blockhash_ctx, token_program_str
+                buy_amount_sol, slippage_pct, blockhash_ctx, token_program_str,
+                creator_str
             )
             if not tx_data:
                 return {"success": False, "error": "Failed to build TX"}
