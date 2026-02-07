@@ -726,9 +726,11 @@ class SolanaTrader:
 
     def _extract_pump_accounts(self, tx_data: Dict) -> Tuple[Optional[Dict], Optional[str]]:
         try:
-            meta = tx_data.get("meta", {})
+            meta = tx_data.get("meta")
+            if meta is None:
+                return None, "tx_meta_null"
             if meta.get("err"):
-                return None
+                return None, "tx_meta_err"
 
             tx_msg = tx_data.get("transaction", {}).get("message", {})
             account_keys = tx_msg.get("accountKeys", [])
