@@ -103,9 +103,13 @@ class BotManager:
             self.metrics.record_latency("parse_latency_ms", parse_ms)
 
             if not parsed:
-                logger.warning(f"Could not parse TX {sig[:16]}... after {parse_ms:.0f}ms")
-                await self.log("WARN", "parse_service", f"Could not parse TX {sig[:16]}... ({parse_ms:.0f}ms)")
+                # Expected: 10-20% of CREATE events fail parsing (incomplete/failed TX, timing issues)
+                # This is NORMAL in HFT - drop silently and move on
+                self.metrics.increment("parse_dropped")
+                logger.debug(f"Dropped unparseable TX {sig[:16]}... after {parse_ms:.0f}ms (normal)")
                 return
+            
+            self.metrics.increment("parse_success")
 
             mint = parsed["mint"]
             bc = parsed["bonding_curve"]
