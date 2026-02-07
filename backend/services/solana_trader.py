@@ -766,7 +766,7 @@ class SolanaTrader:
                             break
 
             if not pump_ix:
-                return None
+                return None, "no_pump_instruction"
 
             ix_accounts = pump_ix.get("accounts", [])
             post_balances = meta.get("postTokenBalances", [])
