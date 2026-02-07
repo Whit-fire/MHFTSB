@@ -270,6 +270,10 @@ async def start_bot():
     env_data = {k: v for k, v in os.environ.items() if any(k.startswith(p) for p in ["HELIUS_", "QUICKNODE_", "EXTRNODE_"])}
     if not rpc_manager.fast_pool and not rpc_manager.cold_pool:
         rpc_manager.configure_from_env(env_data)
+    if bot_manager.mode != "simulation":
+        if wallet_service._key_bytes:
+            solana_trader.load_keypair_from_wallet()
+        liquidity_monitor.configure_from_env()
     result = await bot_manager.start()
     return result
 
