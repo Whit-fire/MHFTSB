@@ -107,7 +107,14 @@ class WalletService:
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 data = await resp.json()
                 if "error" in data:
-                    logger.error(f"RPC error ({method}): {data['error']}")
+                    # CRITICAL FIX: Detect auth failures and mark RPC as failed
+                    error = data["error"]
+                    err_code = error.get("code", 0) if isinstance(error, dict) else 0
+                    if err_code == -32401:
+                        logger.error(f"RPC auth failure ({method}): {error} - marking RPC as failed")
+                        self.rpc_manager.mark_auth_failure(url)
+                    else:
+                        logger.error(f"RPC error ({method}): {error}")
                 return data
 
     async def get_sol_balance(self, address: str = None) -> float:
