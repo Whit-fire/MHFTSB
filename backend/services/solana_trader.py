@@ -614,7 +614,7 @@ class SolanaTrader:
             logger.error(f"execute_buy failed: {e}", exc_info=True)
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
-    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 4) -> Optional[Dict]:
+    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 2) -> Optional[Dict]:
         rpcs = []
         if rpc_url:
             rpcs.append(rpc_url)
@@ -645,24 +645,26 @@ class SolanaTrader:
                                     logger.error("All RPCs have auth failures")
                                     return None
                                 continue
-                            logger.warning(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
-                            await asyncio.sleep(0.3)
+                            # Drop silently - RPC errors are common in HFT, not worth warning
+                            logger.debug(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
+                            await asyncio.sleep(0.2)
                             continue
                         tx_data = data.get("result")
                         if not tx_data:
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(0.5 + 0.5 * attempt)
+                                await asyncio.sleep(0.3 + 0.2 * attempt)
                                 continue
-                            logger.warning(f"TX {signature[:16]}... not found after {max_retries} attempts")
+                            # Drop silently - TX not found is expected (timing, failed TX)
+                            logger.debug(f"TX {signature[:16]}... not found after {max_retries} attempts (normal)")
                             return None
                         parsed = self._extract_pump_accounts(tx_data)
                         if parsed:
                             logger.info(f"Parsed TX {signature[:16]}... on attempt {attempt+1}: mint={parsed['mint'][:12]}...")
                         return parsed
             except Exception as e:
-                logger.error(f"fetch_and_parse_tx attempt {attempt+1} failed: {e}")
+                logger.debug(f"fetch_and_parse_tx attempt {attempt+1} failed: {e}")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(0.2)
         return None
 
     def _extract_pump_accounts(self, tx_data: Dict) -> Optional[Dict]:
