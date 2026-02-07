@@ -3,7 +3,7 @@ import random
 import string
 import logging
 import asyncio
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger("parse_service")
 
@@ -89,7 +89,7 @@ class ParseService:
 
         return None
 
-    async def parse_live_signature(self, signature: str, solana_trader) -> (Optional[dict], Optional[str]):
+    async def parse_live_signature(self, signature: str, solana_trader) -> Tuple[Optional[dict], Optional[str]]:
         self._parse_attempt += 1
         parsed, reason = await solana_trader.fetch_and_parse_tx(signature)
         if not parsed:
