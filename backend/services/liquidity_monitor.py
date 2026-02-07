@@ -45,6 +45,7 @@ class LiquidityMonitorService:
         self._wss_urls = []
         self._reconnect_delay = 2
         self._poll_interval = 1.5
+        self._poll_index = 0
 
     def configure(self, wss_urls: list):
         self._wss_urls = [u for u in wss_urls if u]
@@ -99,7 +100,11 @@ class LiquidityMonitorService:
         rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
         if not rpcs:
             return
-        url = rpcs[0]
+        non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
+        if non_helius:
+            rpcs = non_helius
+        url = rpcs[self._poll_index % len(rpcs)]
+        self._poll_index += 1
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
