@@ -504,30 +504,53 @@ class HFTBotAPITester:
                     self.log(f"⚠️  Buy amount is {buy_amount} SOL, expected 0.03 SOL")
                     return True  # Not a critical issue
             else:
-                self.log("⚠️  Buy amount not found in config, checking environment...")
-                # This might be set via environment variable
+                self.log("⚠️  Buy amount not found in config")
+                # Check setup endpoint for default values
+                setup_success, setup_response = self.run_test(
+                    "Get Setup Configuration",
+                    "GET",
+                    "setup",
+                    200
+                )
+                if setup_success:
+                    setup_data = setup_response.get('setup', {})
+                    self.log(f"   Setup data available: {list(setup_data.keys()) if setup_data else 'none'}")
+                
+                self.log("   Note: Buy amount might be set via DEFAULT_BUY_AMOUNT environment variable (0.03)")
                 return True  # Not a critical failure
         
         return success
 
     def test_dashboard_metrics(self):
-        """Test dashboard endpoint for metrics"""
+        """Test metrics endpoints (no dashboard endpoint exists)"""
+        # Test metrics endpoint instead of dashboard
         success, response = self.run_test(
-            "Get Dashboard Metrics",
+            "Get Metrics (Dashboard Alternative)",
             "GET",
-            "dashboard",
+            "metrics",
             200
         )
         
         if success:
-            # Check if response has expected dashboard structure
+            # Check if response has expected metrics structure
             if isinstance(response, dict):
-                self.log(f"   Dashboard data keys: {list(response.keys())}")
-                self.log("✅ Dashboard endpoint working")
+                self.log(f"   Metrics data keys: {list(response.keys())}")
+                self.log("✅ Metrics endpoint working (dashboard alternative)")
             else:
-                self.log(f"   Dashboard response type: {type(response)}")
+                self.log(f"   Metrics response type: {type(response)}")
         
-        return success
+        # Also test KPI metrics
+        kpi_success, kpi_response = self.run_test(
+            "Get KPI Metrics",
+            "GET", 
+            "metrics/kpi",
+            200
+        )
+        
+        if kpi_success:
+            self.log(f"   KPI metrics available: {list(kpi_response.keys()) if isinstance(kpi_response, dict) else 'N/A'}")
+        
+        return success and kpi_success
 
     def test_bot_control(self):
         """Test bot control operations"""
