@@ -99,8 +99,7 @@ class RpcManagerService:
     def get_all_available_rpcs(self) -> List[RpcEndpoint]:
         """Return all available RPC endpoints sorted by health score."""
         all_eps = [ep for ep in (self.fast_pool + self.cold_pool) if ep.is_available()]
-        if not all_eps:
-            all_eps = self.fast_pool + self.cold_pool
+        # CRITICAL FIX: Never return RPCs in cooldown - forces proper fallback to cold_pool
         return sorted(all_eps, key=lambda e: -e.health_score)
 
     def mark_auth_failure(self, url: str):
