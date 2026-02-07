@@ -54,7 +54,12 @@ class PositionData:
             "pump_score": self.pump_score, "status": self.status,
             "stop_loss": self.stop_loss, "trailing_active": self.trailing_active,
             "trailing_high": self.trailing_high, "close_reason": self.close_reason,
-            "close_time": self.close_time, "tx_signature": self.tx_signature
+            "close_time": self.close_time, "tx_signature": self.tx_signature,
+            "bonding_curve": self.bonding_curve,
+            "associated_bonding_curve": self.associated_bonding_curve,
+            "token_program": self.token_program,
+            "creator": self.creator,
+            "token_amount": self.token_amount
         }
 
 
