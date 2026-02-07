@@ -73,7 +73,9 @@ class PositionManager:
     def update_config(self, config: dict):
         self.config = config
 
-    async def register_buy(self, mint, token_name, entry_price, amount_sol, pump_score, signature) -> Optional[str]:
+    async def register_buy(self, mint, token_name, entry_price, amount_sol, pump_score, signature,
+                          bonding_curve=None, associated_bonding_curve=None, token_program=None, 
+                          creator=None, token_amount=None) -> Optional[str]:
         exec_config = self.config.get("EXECUTION", {})
         if len(self._positions) >= exec_config.get("MAX_OPEN_POSITIONS", 30):
             logger.warning(f"[POS] MAX_OPEN_POSITIONS reached, rejecting {token_name}")
@@ -83,7 +85,8 @@ class PositionManager:
                 logger.warning(f"[POS] Already have position for {mint[:8]}...")
                 return None
 
-        pos = PositionData(mint, token_name, entry_price, amount_sol, pump_score, signature)
+        pos = PositionData(mint, token_name, entry_price, amount_sol, pump_score, signature,
+                          bonding_curve, associated_bonding_curve, token_program, creator, token_amount)
         self._positions[pos.id] = pos
         try:
             await self.db.positions.insert_one({**pos.to_dict(), "created_at": datetime.now(timezone.utc).isoformat()})
