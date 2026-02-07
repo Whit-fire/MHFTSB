@@ -1109,37 +1109,41 @@ class HFTBotAPITester:
 
     def run_all_tests(self):
         """Run complete test suite"""
-        self.log("🚀 Starting HFT Bot API Test Suite - Clone & Inject Implementation Testing")
+        self.log("🚀 Starting HFT Bot API Test Suite - ParseService Correction Testing")
         self.log(f"Testing against: {self.base_url}")
         
-        # CRITICAL Clone & Inject Implementation Tests
-        self.log("\n🔧 CRITICAL Clone & Inject Implementation Tests...")
+        # CRITICAL ParseService Correction Tests
+        self.log("\n🔧 CRITICAL ParseService Correction Tests...")
         
-        # Test 1: Import and syntax for Clone & Inject functionality
-        self.test_clone_and_inject_import()
-        
-        # Test 2: _extract_pump_accounts structure for Clone & Inject
-        self.test_extract_pump_accounts_structure()
-        
-        # Test 3: Health check
+        # Test 1: Health check first
         if not self.test_health():
             self.log("❌ Health check failed - may indicate server issues", "ERROR")
         
-        # Test 4: Configuration
+        # Test 2: Configuration
         config = self.test_config_get()
         self.test_configuration_buy_amount()
         
-        # Test 5: Simulation mode with Clone & Inject (CRITICAL TEST)
-        self.test_simulation_mode_clone_and_inject()
+        # Test 3: COMPREHENSIVE ParseService test (MOST IMPORTANT)
+        self.test_parse_service_comprehensive()
         
-        # Test 6: Position endpoints with Clone & Inject data verification
-        self.test_positions_with_sell_data()
+        # Test 4: Additional ParseService-specific tests
+        self.test_parse_service_metrics()
+        self.test_parse_service_logs_clean()
         
-        # Test 7: Metrics and KPI (should work correctly with Clone & Inject)
-        self.test_metrics()
-        
-        # Test 8: Dashboard/metrics endpoints
+        # Test 5: Verify API endpoints still work
         self.test_dashboard_metrics()
+        
+        # Additional Clone & Inject Tests (regression check)
+        self.log("\n🔧 Clone & Inject Regression Tests...")
+        
+        # Test 6: Import and syntax for Clone & Inject functionality
+        self.test_clone_and_inject_import()
+        
+        # Test 7: _extract_pump_accounts structure for Clone & Inject
+        self.test_extract_pump_accounts_structure()
+        
+        # Test 8: Position endpoints with Clone & Inject data verification
+        self.test_positions_with_sell_data()
         
         # Additional standard tests
         self.log("\n📋 Standard API Tests...")
