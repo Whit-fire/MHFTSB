@@ -6,7 +6,7 @@ import asyncio
 import logging
 import base58
 import aiohttp
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solders.system_program import TransferParams, transfer
@@ -15,6 +15,8 @@ from solders.message import Message
 from solders.instruction import Instruction, AccountMeta
 from solders.hash import Hash
 from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
+
+from services.tx_error_classifier import TxErrorClassifier
 
 logger = logging.getLogger("solana_trader")
 
@@ -132,6 +134,13 @@ class SolanaTrader:
         self.jito_tip_account = os.environ.get("JITO_TIP_ACCOUNT", "")
         self.tip_amount_sol = float(os.environ.get("JITO_TIP_AMOUNT", "0.015"))
         self._keypair: Optional[Keypair] = None
+
+    def _select_rpcs(self) -> List[str]:
+        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
+        if non_helius:
+            rpcs = non_helius
+        return sorted(rpcs, key=lambda u: 0 if "extrnode" in u else 1)
 
     async def fetch_bonding_curve_creator(self, bonding_curve_str: str) -> Optional[Pubkey]:
         """Fetch the creator pubkey from the on-chain BondingCurve account data."""
