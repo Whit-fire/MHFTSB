@@ -770,6 +770,8 @@ class SolanaTrader:
 
             ix_accounts = pump_ix.get("accounts", [])
             post_balances = meta.get("postTokenBalances", [])
+            if not post_balances:
+                return None, "no_post_token_balances"
 
             mint = None
             bonding_curve = None
