@@ -99,36 +99,43 @@ class SolanaTrader:
         return False
 
     async def get_latest_blockhash(self, rpc_url: str = None) -> Optional[Dict]:
-        url = rpc_url
-        if not url:
-            ep = self.rpc_manager.get_tx_fetch_connection()
-            url = ep.url if ep else None
-        if not url:
+        rpcs = []
+        if rpc_url:
+            rpcs.append(rpc_url)
+        for ep in self.rpc_manager.get_all_available_rpcs():
+            if ep.url not in rpcs:
+                rpcs.append(ep.url)
+        if not rpcs:
             logger.error("No RPC URL available for getLatestBlockhash")
             return None
-        try:
-            async with aiohttp.ClientSession() as session:
-                payload = {"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash",
-                           "params": [{"commitment": "processed"}]}
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                    data = await resp.json()
-                    if "error" in data:
-                        logger.error(f"getLatestBlockhash RPC error: {data['error']}")
-                        return None
-                    result = data.get("result", {}).get("value", {})
-                    bh = result.get("blockhash")
-                    if not bh:
-                        logger.error(f"getLatestBlockhash returned empty result")
-                        return None
-                    logger.info(f"Got blockhash: {bh[:12]}... from {url[:40]}...")
-                    return {
-                        "blockhash": bh,
-                        "last_valid_block_height": result.get("lastValidBlockHeight"),
-                        "rpc_url": url
-                    }
-        except Exception as e:
-            logger.error(f"getLatestBlockhash failed: {e}")
-            return None
+
+        for url in rpcs[:3]:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    payload = {"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash",
+                               "params": [{"commitment": "processed"}]}
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        data = await resp.json()
+                        if "error" in data:
+                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                            if err_code == -32401:
+                                self.rpc_manager.mark_auth_failure(url)
+                                continue
+                            logger.error(f"getLatestBlockhash RPC error from {url[:40]}...: {data['error']}")
+                            continue
+                        result = data.get("result", {}).get("value", {})
+                        bh = result.get("blockhash")
+                        if not bh:
+                            continue
+                        logger.info(f"Got blockhash: {bh[:12]}... from {url[:40]}...")
+                        return {
+                            "blockhash": bh,
+                            "last_valid_block_height": result.get("lastValidBlockHeight"),
+                            "rpc_url": url
+                        }
+            except Exception as e:
+                logger.error(f"getLatestBlockhash failed on {url[:40]}...: {e}")
+        return None
 
     async def build_buy_transaction(
         self, mint_str: str, bonding_curve_str: str,
