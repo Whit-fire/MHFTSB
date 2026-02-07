@@ -664,12 +664,14 @@ class SolanaTrader:
                     "error_expected": True
                 }
 
-            # CRITICAL FIX: Wait for bonding_curve to be initialized before sending TX
-            logger.info("Waiting for bonding_curve account to be initialized by pump.fun...")
-            bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=8.0)
+            bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=0.0)
             if not bc_ready:
-                logger.error("Bonding curve not initialized in time - aborting buy")
-                return {"success": False, "error": "Bonding curve not ready (AccountOwnedByWrongProgram avoided)"}
+                return {
+                    "success": False,
+                    "error": "Bonding curve not ready",
+                    "error_type": "bonding_curve_not_ready",
+                    "error_expected": True
+                }
             
             blockhash_ctx = await self.get_latest_blockhash()
             if not blockhash_ctx:
