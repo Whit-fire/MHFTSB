@@ -1,6 +1,7 @@
 import os
 import struct
 import time
+import asyncio
 import logging
 import base58
 import aiohttp
