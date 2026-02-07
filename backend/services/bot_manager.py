@@ -121,7 +121,11 @@ class BotManager:
             await self.log("INFO", "parse_service",
                            f"Parsed CREATE mint={mint[:8]}... bc={bc[:8]}... in {parse_ms:.0f}ms")
 
-            buy_amount = self.config.get("FILTERS", {}).get("MAX_INITIAL_BUY_AMOUNT", 0.03)
+            raw_buy_amount = self.config.get("FILTERS", {}).get("MAX_INITIAL_BUY_AMOUNT", 0.03)
+            try:
+                buy_amount = float(raw_buy_amount)
+            except Exception:
+                buy_amount = 0.03
 
             exec_start = time.time()
             # Use Clone & Inject pattern - pass complete parsed data instead of individual fields
@@ -134,7 +138,7 @@ class BotManager:
 
             if result["success"]:
                 # Calculate token_amount for potential sell later
-                token_amount = int(buy_amount * 1e9 * 30)  # Approximate token amount from SOL
+                token_amount = int(float(buy_amount) * 1e9 * 30)  # Approximate token amount from SOL
                 
                 await self.position_manager.register_buy(
                     mint, mint[:8] + "...", result.get("entry_price_sol", buy_amount),
