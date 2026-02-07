@@ -23,6 +23,7 @@ PUMP_GLOBAL = Pubkey.from_string("4wTV1YmiEkRvAtNtsSGPtUrqRYQMe5SKy2uB4Jjaxnjf")
 PUMP_FEE_RECIPIENT = Pubkey.from_string("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbCJ7v6v5nwwc")
 PUMP_EVENT_AUTHORITY = Pubkey.from_string("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
 TOKEN_PROGRAM = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+TOKEN_2022_PROGRAM = Pubkey.from_string("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
 ASSOC_TOKEN_PROGRAM = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
 SYSTEM_PROGRAM = Pubkey.from_string("11111111111111111111111111111111")
 RENT_SYSVAR = Pubkey.from_string("SysvarRent111111111111111111111111111111111")
@@ -30,9 +31,13 @@ RENT_SYSVAR = Pubkey.from_string("SysvarRent111111111111111111111111111111111")
 BUY_DISCRIMINATOR = bytes.fromhex("66063d1201daebea")
 SELL_DISCRIMINATOR = bytes.fromhex("33e685a4017f83ad")
 
+TOKEN_PROGRAM_STR = str(TOKEN_PROGRAM)
+TOKEN_2022_PROGRAM_STR = str(TOKEN_2022_PROGRAM)
 
-def get_associated_token_address(wallet: Pubkey, mint: Pubkey) -> Pubkey:
-    seeds = [bytes(wallet), bytes(TOKEN_PROGRAM), bytes(mint)]
+
+def get_associated_token_address(wallet: Pubkey, mint: Pubkey, token_program: Pubkey = None) -> Pubkey:
+    tp = token_program or TOKEN_2022_PROGRAM
+    seeds = [bytes(wallet), bytes(tp), bytes(mint)]
     pda, _ = Pubkey.find_program_address(seeds, ASSOC_TOKEN_PROGRAM)
     return pda
 
@@ -40,8 +45,10 @@ def get_associated_token_address(wallet: Pubkey, mint: Pubkey) -> Pubkey:
 def build_buy_instruction(
     buyer: Pubkey, mint: Pubkey, bonding_curve: Pubkey,
     associated_bonding_curve: Pubkey, buyer_ata: Pubkey,
-    token_amount: int, max_sol_cost: int
+    token_amount: int, max_sol_cost: int,
+    token_program: Pubkey = None
 ) -> Instruction:
+    tp = token_program or TOKEN_2022_PROGRAM
     data = BUY_DISCRIMINATOR + struct.pack("<Q", token_amount) + struct.pack("<Q", max_sol_cost)
     accounts = [
         AccountMeta(PUMP_GLOBAL, is_signer=False, is_writable=False),
@@ -52,7 +59,7 @@ def build_buy_instruction(
         AccountMeta(buyer_ata, is_signer=False, is_writable=True),
         AccountMeta(buyer, is_signer=True, is_writable=True),
         AccountMeta(SYSTEM_PROGRAM, is_signer=False, is_writable=False),
-        AccountMeta(TOKEN_PROGRAM, is_signer=False, is_writable=False),
+        AccountMeta(tp, is_signer=False, is_writable=False),
         AccountMeta(RENT_SYSVAR, is_signer=False, is_writable=False),
         AccountMeta(PUMP_EVENT_AUTHORITY, is_signer=False, is_writable=False),
         AccountMeta(PUMP_FUN_PROGRAM, is_signer=False, is_writable=False),
@@ -60,15 +67,16 @@ def build_buy_instruction(
     return Instruction(PUMP_FUN_PROGRAM, data, accounts)
 
 
-def build_create_ata_idempotent(payer: Pubkey, owner: Pubkey, mint: Pubkey) -> Instruction:
-    ata = get_associated_token_address(owner, mint)
+def build_create_ata_idempotent(payer: Pubkey, owner: Pubkey, mint: Pubkey, token_program: Pubkey = None) -> Instruction:
+    tp = token_program or TOKEN_2022_PROGRAM
+    ata = get_associated_token_address(owner, mint, tp)
     accounts = [
         AccountMeta(payer, is_signer=True, is_writable=True),
         AccountMeta(ata, is_signer=False, is_writable=True),
         AccountMeta(owner, is_signer=False, is_writable=False),
         AccountMeta(mint, is_signer=False, is_writable=False),
         AccountMeta(SYSTEM_PROGRAM, is_signer=False, is_writable=False),
-        AccountMeta(TOKEN_PROGRAM, is_signer=False, is_writable=False),
+        AccountMeta(tp, is_signer=False, is_writable=False),
     ]
     data = bytes([1])
     return Instruction(ASSOC_TOKEN_PROGRAM, data, accounts)
