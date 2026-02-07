@@ -21,6 +21,8 @@ class BotManager:
         self.position_manager = position_manager
         self.metrics = metrics
         self.ws_broadcast = None
+        self.solana_trader = None
+        self.liquidity_monitor = None
         self.status = "stopped"
         self.mode = "simulation"
         self.start_time = None
