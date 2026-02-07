@@ -10,7 +10,8 @@ logger = logging.getLogger("position_manager")
 
 
 class PositionData:
-    def __init__(self, token_mint, token_name, entry_price, amount_sol, pump_score, tx_signature):
+    def __init__(self, token_mint, token_name, entry_price, amount_sol, pump_score, tx_signature,
+                 bonding_curve=None, associated_bonding_curve=None, token_program=None, creator=None, token_amount=None):
         self.id = str(uuid.uuid4())
         self.token_mint = token_mint
         self.token_name = token_name
@@ -29,6 +30,12 @@ class PositionData:
         self.close_time = None
         self.tx_signature = tx_signature
         self.tp_hits = []
+        # New fields for sell execution
+        self.bonding_curve = bonding_curve
+        self.associated_bonding_curve = associated_bonding_curve
+        self.token_program = token_program
+        self.creator = creator
+        self.token_amount = token_amount
 
     def update_price(self, new_price):
         self.current_price_sol = new_price
