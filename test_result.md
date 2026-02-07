@@ -157,8 +157,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Implémentation Clone & Inject pour respecter les règles Pump.fun HFT"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
