@@ -106,7 +106,8 @@ class BotManager:
                 # Expected: 10-20% of CREATE events fail parsing (incomplete/failed TX, timing issues)
                 # This is NORMAL in HFT - drop silently and move on
                 self.metrics.increment("parse_dropped")
-                logger.debug(f"Dropped unparseable TX {sig[:16]}... after {parse_ms:.0f}ms (normal)")
+                # TEMPORARY DEBUG: Changed to INFO to see why 100% TX are dropped in live
+                logger.info(f"[DEBUG] Dropped unparseable TX {sig[:16]}... after {parse_ms:.0f}ms - fetch returned None")
                 return
             
             self.metrics.increment("parse_success")
