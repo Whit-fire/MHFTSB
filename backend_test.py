@@ -815,28 +815,31 @@ class HFTBotAPITester:
 
     def run_all_tests(self):
         """Run complete test suite"""
-        self.log("🚀 Starting HFT Bot API Test Suite - P0 Fix Verification")
+        self.log("🚀 Starting HFT Bot API Test Suite - P1 Sell Feature Testing")
         self.log(f"Testing against: {self.base_url}")
         
-        # P0 Fix Specific Tests
-        self.log("\n🔧 P0 Fix Verification Tests...")
+        # P1 Sell Feature Specific Tests
+        self.log("\n🔧 P1 Sell Feature Verification Tests...")
         
-        # Test 1: Import and syntax
+        # Test 1: Import and syntax for sell functionality
         self.test_solana_trader_import()
         
         # Test 2: Health check
         if not self.test_health():
             self.log("❌ Health check failed - may indicate server issues", "ERROR")
         
-        # Test 3: Configuration and buy amount
+        # Test 3: Configuration
         config = self.test_config_get()
         self.test_configuration_buy_amount()
         
-        # Test 4: Dashboard metrics
-        self.test_dashboard_metrics()
+        # Test 4: Simulation mode with sell features (comprehensive test)
+        self.test_simulation_mode_with_sell_features()
         
-        # Test 5: Simulation mode comprehensive test
-        self.test_simulation_mode_comprehensive()
+        # Test 5: Position endpoints with sell data verification
+        self.test_positions_with_sell_data()
+        
+        # Test 6: Metrics and KPI (should work correctly with sell features)
+        self.test_metrics()
         
         # Additional standard tests
         self.log("\n📋 Standard API Tests...")
@@ -885,11 +888,9 @@ class HFTBotAPITester:
         else:
             self.log("   ⚠️  Skipping additional wallet tests due to encryption failure")
         
-        # Additional bot tests (but not starting bot again since we tested simulation mode above)
+        # Additional bot tests
         self.log("\n🤖 Additional Bot Tests...")
         bot_status = self.test_bot_status()
-        self.test_positions()
-        self.test_metrics()
         self.test_logs()
         
         # Control operations
