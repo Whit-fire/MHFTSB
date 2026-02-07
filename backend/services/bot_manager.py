@@ -217,7 +217,7 @@ class BotManager:
             self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
 
     async def _log_event(self, level: str, event: str, data: dict):
-        payload = {"event": event, **(data or {})}
+        payload = {"event": event, "ts": datetime.now(timezone.utc).isoformat(), **(data or {})}
         message = json.dumps(payload, separators=(",", ":"), default=str)
         if level == "ERROR":
             logger.error(message)
