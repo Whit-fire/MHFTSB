@@ -239,8 +239,12 @@ class SolanaTrader:
         slippage_pct: float = 25.0
     ) -> Dict:
         start = time.time()
+        logger.info(f"execute_buy: mint={mint_str[:12]}... amount={buy_amount_sol} SOL")
         try:
             blockhash_ctx = await self.get_latest_blockhash()
+            if not blockhash_ctx:
+                return {"success": False, "error": "Failed to get blockhash"}
+
             tx_data = await self.build_buy_transaction(
                 mint_str, bonding_curve_str, assoc_bonding_curve_str,
                 buy_amount_sol, slippage_pct, blockhash_ctx
@@ -248,11 +252,11 @@ class SolanaTrader:
             if not tx_data:
                 return {"success": False, "error": "Failed to build TX"}
 
-            send_url = blockhash_ctx.get("rpc_url") if blockhash_ctx else None
-            sig = await self.send_transaction(tx_data["tx_base64"], send_url)
+            sig = await self.send_transaction(tx_data["tx_base64"])
             latency = (time.time() - start) * 1000
 
             if sig:
+                logger.info(f"execute_buy SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
                 return {
                     "success": True, "signature": sig,
                     "latency_ms": latency, "mint": mint_str,
@@ -262,7 +266,7 @@ class SolanaTrader:
             return {"success": False, "error": "Send failed", "latency_ms": latency}
 
         except Exception as e:
-            logger.error(f"execute_buy failed: {e}")
+            logger.error(f"execute_buy failed: {e}", exc_info=True)
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
     async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 4) -> Optional[Dict]:
