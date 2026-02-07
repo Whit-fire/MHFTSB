@@ -767,17 +767,40 @@ class SolanaTrader:
                 # Build complete account metas list for cloning
                 account_metas_for_clone = []
                 for idx in ix_accounts:
-                    if idx < len(account_keys):
-                        ak = account_keys[idx]
-                        pubkey_str = ak.get("pubkey", "") if isinstance(ak, dict) else str(ak)
-                        is_signer = ak.get("signer", False) if isinstance(ak, dict) else False
-                        is_writable = ak.get("writable", False) if isinstance(ak, dict) else False
+                    pubkey_str = ""
+                    is_signer = False
+                    is_writable = False
+
+                    if isinstance(idx, int):
+                        if idx < len(account_keys):
+                            ak = account_keys[idx]
+                            pubkey_str = ak.get("pubkey", "") if isinstance(ak, dict) else str(ak)
+                            is_signer = ak.get("signer", False) if isinstance(ak, dict) else False
+                            is_writable = ak.get("writable", False) if isinstance(ak, dict) else False
+                    elif isinstance(idx, dict):
+                        pubkey_str = idx.get("pubkey", "")
+                        is_signer = idx.get("signer", False)
+                        is_writable = idx.get("writable", False)
+                    else:
+                        pubkey_str = str(idx)
+                        for ak in account_keys:
+                            ak_pubkey = ak.get("pubkey", "") if isinstance(ak, dict) else str(ak)
+                            if ak_pubkey == pubkey_str:
+                                if isinstance(ak, dict):
+                                    is_signer = ak.get("signer", False)
+                                    is_writable = ak.get("writable", False)
+                                break
+
+                    if pubkey_str:
                         account_metas_for_clone.append({
                             "pubkey": pubkey_str,
                             "isSigner": is_signer,
                             "isWritable": is_writable
                         })
                 
+                if not account_metas_for_clone:
+                    return None
+
                 return {
                     "mint": mint,
                     "bonding_curve": bonding_curve,
