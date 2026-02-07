@@ -4,6 +4,8 @@ import string
 import logging
 import asyncio
 
+from services.tx_error_classifier import TxErrorClassifier
+
 logger = logging.getLogger("execution_engine")
 
 
@@ -39,10 +41,23 @@ class ExecutionEngine:
             else:
                 self._failed += 1
                 latency = (time.time() - start) * 1000
-                logger.warning(f"[EXEC] FAILED {parsed_event.token_name} latency={latency:.1f}ms")
-                return {"success": False, "error": "SimulatedFailure", "latency_ms": latency}
+                classified = TxErrorClassifier.classify("SimulatedFailure")
+                logger.info(f"[EXEC] FAILED {parsed_event.token_name} latency={latency:.1f}ms")
+                return {
+                    "success": False,
+                    "error": "SimulatedFailure",
+                    "error_type": classified["type"],
+                    "error_expected": classified["expected"],
+                    "latency_ms": latency
+                }
 
-        return {"success": False, "error": "LiveModeNotImplemented"}
+        classified = TxErrorClassifier.classify("LiveModeNotImplemented")
+        return {
+            "success": False,
+            "error": "LiveModeNotImplemented",
+            "error_type": classified["type"],
+            "error_expected": classified["expected"]
+        }
 
     def get_stats(self) -> dict:
         return {
