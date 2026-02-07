@@ -208,33 +208,29 @@ class SolanaTrader:
             logger.debug("No RPC URL available for getLatestBlockhash")
             return None
 
-        for url in rpcs[:3]:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    payload = {"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash",
-                               "params": [{"commitment": "processed"}]}
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                        data = await resp.json()
-                        if "error" in data:
-                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
-                            if err_code == -32401:
-                                self.rpc_manager.mark_auth_failure(url)
-                                continue
-                            logger.error(f"getLatestBlockhash RPC error from {url[:40]}...: {data['error']}")
-                            continue
-                        result = data.get("result", {}).get("value", {})
-                        bh = result.get("blockhash")
-                        if not bh:
-                            continue
-                        logger.info(f"Got blockhash: {bh[:12]}... from {url[:40]}...")
-                        return {
-                            "blockhash": bh,
-                            "last_valid_block_height": result.get("lastValidBlockHeight"),
-                            "rpc_url": url
-                        }
-            except Exception as e:
-                logger.error(f"getLatestBlockhash failed on {url[:40]}...: {e}")
-        return None
+        url = rpcs[0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash",
+                           "params": [{"commitment": "processed"}]}
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                        if err_code == -32401:
+                            self.rpc_manager.mark_auth_failure(url)
+                        return None
+                    result = data.get("result", {}).get("value", {})
+                    bh = result.get("blockhash")
+                    if not bh:
+                        return None
+                    return {
+                        "blockhash": bh,
+                        "last_valid_block_height": result.get("lastValidBlockHeight"),
+                        "rpc_url": url
+                    }
+        except Exception:
+            return None
 
     async def wait_for_signature_status(self, signature: str, max_wait: float = 2.0) -> bool:
         rpcs = self._select_rpcs()
