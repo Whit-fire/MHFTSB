@@ -664,7 +664,7 @@ class SolanaTrader:
             logger.error(f"execute_buy failed: {e}", exc_info=True)
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
-    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 2) -> Optional[Dict]:
+    async def fetch_and_parse_tx(self, signature: str, rpc_url: str = None, max_retries: int = 6) -> Optional[Dict]:
         rpcs = []
         if rpc_url:
             rpcs.append(rpc_url)
@@ -679,9 +679,10 @@ class SolanaTrader:
             url = rpcs[attempt % len(rpcs)]
             try:
                 async with aiohttp.ClientSession() as session:
+                    commitment = "processed" if attempt < max(2, max_retries - 2) else "confirmed"
                     payload = {
                         "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
-                        "params": [signature, {"encoding": "jsonParsed", "commitment": "confirmed",
+                        "params": [signature, {"encoding": "jsonParsed", "commitment": commitment,
                                                "maxSupportedTransactionVersion": 0}]
                     }
                     async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
@@ -697,12 +698,12 @@ class SolanaTrader:
                                 continue
                             # Drop silently - RPC errors are common in HFT, not worth warning
                             logger.debug(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
-                            await asyncio.sleep(0.2)
+                            await asyncio.sleep(0.3 + 0.2 * attempt)
                             continue
                         tx_data = data.get("result")
                         if not tx_data:
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(0.3 + 0.2 * attempt)
+                                await asyncio.sleep(0.4 + 0.2 * attempt)
                                 continue
                             # TEMPORARY DEBUG: Changed to INFO
                             logger.info(f"[DEBUG] TX {signature[:16]}... not found after {max_retries} attempts (RPC returned null)")
