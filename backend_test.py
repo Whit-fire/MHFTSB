@@ -927,14 +927,17 @@ class HFTBotAPITester:
 
     def run_all_tests(self):
         """Run complete test suite"""
-        self.log("🚀 Starting HFT Bot API Test Suite - P1 Sell Feature Testing")
+        self.log("🚀 Starting HFT Bot API Test Suite - Clone & Inject Implementation Testing")
         self.log(f"Testing against: {self.base_url}")
         
-        # P1 Sell Feature Specific Tests
-        self.log("\n🔧 P1 Sell Feature Verification Tests...")
+        # CRITICAL Clone & Inject Implementation Tests
+        self.log("\n🔧 CRITICAL Clone & Inject Implementation Tests...")
         
-        # Test 1: Import and syntax for sell functionality
-        self.test_solana_trader_import()
+        # Test 1: Import and syntax for Clone & Inject functionality
+        self.test_clone_and_inject_import()
+        
+        # Test 2: _extract_pump_accounts structure for Clone & Inject
+        self.test_extract_pump_accounts_structure()
         
         # Test 2: Health check
         if not self.test_health():
