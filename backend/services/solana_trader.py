@@ -488,6 +488,10 @@ class SolanaTrader:
                             err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
                             if err_code == -32401:
                                 self.rpc_manager.mark_auth_failure(url)
+                                rpcs = [u for u in rpcs if u != url]
+                                if not rpcs:
+                                    logger.error("No RPC available after auth failures")
+                                    return False
                             logger.warning(f"BC check error (attempt {attempt}): {data['error']}")
                             await asyncio.sleep(delay_ms / 1000)
                             continue
