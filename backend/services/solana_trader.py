@@ -191,7 +191,7 @@ class SolanaTrader:
             return None
 
     async def send_transaction(self, tx_b64: str, rpc_url: str = None) -> Optional[str]:
-        url = rpc_url or self.jito_url
+        url = self.jito_url if self.jito_url else rpc_url
         if not url:
             ep = self.rpc_manager.get_tx_fetch_connection()
             url = ep.url if ep else None
