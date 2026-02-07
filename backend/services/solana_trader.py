@@ -293,7 +293,7 @@ class SolanaTrader:
                 async with aiohttp.ClientSession() as session:
                     payload = {
                         "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
-                        "params": [signature, {"encoding": "jsonParsed", "commitment": "processed",
+                        "params": [signature, {"encoding": "jsonParsed", "commitment": "confirmed",
                                                "maxSupportedTransactionVersion": 0}]
                     }
                     async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
