@@ -560,12 +560,14 @@ class SolanaTrader:
             if buy_amount_sol <= 0:
                 return {"success": False, "error": "Invalid buy amount"}
 
-            # CRITICAL FIX: Wait for bonding_curve to be initialized before sending TX
-            logger.info("Waiting for bonding_curve account to be initialized by pump.fun...")
-            bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=8.0)
+            bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=0.0)
             if not bc_ready:
-                logger.error("Bonding curve not initialized in time - aborting buy")
-                return {"success": False, "error": "Bonding curve not ready (AccountOwnedByWrongProgram avoided)"}
+                return {
+                    "success": False,
+                    "error": "Bonding curve not ready",
+                    "error_type": "bonding_curve_not_ready",
+                    "error_expected": True
+                }
             
             blockhash_ctx = await self.get_latest_blockhash()
             if not blockhash_ctx:
@@ -578,26 +580,24 @@ class SolanaTrader:
             if not tx_data:
                 return {"success": False, "error": "Failed to clone & inject TX"}
 
-            sig = await self.send_transaction(tx_data["tx_base64"])
+            send_result = await self.send_transaction(tx_data["tx_base64"])
             latency = (time.time() - start) * 1000
 
-            if sig:
-                logger.info(f"execute_buy_cloned SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
-                
-                # VERIFICATION ON-CHAIN: Check if TX was confirmed and tokens received
-                logger.info(f"Verifying transaction on-chain for mint={mint_str[:12]}...")
-                verification = await self.verify_transaction_onchain(sig, mint_str, max_wait=15)
-                
-                if verification.get("confirmed"):
-                    if verification.get("success"):
-                        token_received = verification.get("token_received", False)
-                        token_change = verification.get("token_amount_change", 0)
-                        logger.info(f"✅ TX CONFIRMED on-chain! Token received: {token_received}, amount: {token_change}")
-                    else:
-                        logger.error(f"❌ TX FAILED on-chain: {verification.get('error')}")
-                else:
-                    logger.warning(f"⚠️ TX verification incomplete: {verification.get('error')}")
-                
+            if send_result.get("signature"):
+                sig = send_result["signature"]
+                verification = await self.verify_transaction_onchain(sig, mint_str, max_wait=0)
+                if verification.get("confirmed") and not verification.get("success", True):
+                    return {
+                        "success": False,
+                        "signature": sig,
+                        "latency_ms": latency,
+                        "mint": mint_str,
+                        "amount_sol": buy_amount_sol,
+                        "error": verification.get("error"),
+                        "error_type": verification.get("error_type"),
+                        "error_expected": verification.get("error_expected", False),
+                        "verification": verification,
+                    }
                 return {
                     "success": True, "signature": sig,
                     "latency_ms": latency, "mint": mint_str,
@@ -605,7 +605,13 @@ class SolanaTrader:
                     "entry_price_sol": buy_amount_sol,
                     "verification": verification,
                 }
-            return {"success": False, "error": "Send failed", "latency_ms": latency}
+            return {
+                "success": False,
+                "error": send_result.get("error"),
+                "error_type": send_result.get("error_type"),
+                "error_expected": send_result.get("error_expected", False),
+                "latency_ms": latency
+            }
 
         except Exception as e:
             logger.error(f"execute_buy_cloned failed: {e}", exc_info=True)
