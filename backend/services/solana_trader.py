@@ -51,23 +51,29 @@ def build_buy_instruction(
     buyer: Pubkey, mint: Pubkey, bonding_curve: Pubkey,
     associated_bonding_curve: Pubkey, buyer_ata: Pubkey,
     token_amount: int, max_sol_cost: int,
+    creator_vault: Pubkey, user_volume_accumulator: Pubkey,
     token_program: Pubkey = None
 ) -> Instruction:
     tp = token_program or TOKEN_2022_PROGRAM
-    data = BUY_DISCRIMINATOR + struct.pack("<Q", token_amount) + struct.pack("<Q", max_sol_cost)
+    # Data: discriminator(8) + amount(8) + max_sol_cost(8) + track_volume(1)
+    data = BUY_DISCRIMINATOR + struct.pack("<Q", token_amount) + struct.pack("<Q", max_sol_cost) + bytes([0])
     accounts = [
-        AccountMeta(PUMP_GLOBAL, is_signer=False, is_writable=False),
-        AccountMeta(PUMP_FEE_RECIPIENT, is_signer=False, is_writable=True),
-        AccountMeta(mint, is_signer=False, is_writable=False),
-        AccountMeta(bonding_curve, is_signer=False, is_writable=True),
-        AccountMeta(associated_bonding_curve, is_signer=False, is_writable=True),
-        AccountMeta(buyer_ata, is_signer=False, is_writable=True),
-        AccountMeta(buyer, is_signer=True, is_writable=True),
-        AccountMeta(SYSTEM_PROGRAM, is_signer=False, is_writable=False),
-        AccountMeta(tp, is_signer=False, is_writable=False),
-        AccountMeta(RENT_SYSVAR, is_signer=False, is_writable=False),
-        AccountMeta(PUMP_EVENT_AUTHORITY, is_signer=False, is_writable=False),
-        AccountMeta(PUMP_FUN_PROGRAM, is_signer=False, is_writable=False),
+        AccountMeta(PUMP_GLOBAL, is_signer=False, is_writable=False),          # 0: global
+        AccountMeta(PUMP_FEE_RECIPIENT, is_signer=False, is_writable=True),    # 1: fee_recipient
+        AccountMeta(mint, is_signer=False, is_writable=False),                 # 2: mint
+        AccountMeta(bonding_curve, is_signer=False, is_writable=True),         # 3: bonding_curve
+        AccountMeta(associated_bonding_curve, is_signer=False, is_writable=True), # 4: associated_bonding_curve
+        AccountMeta(buyer_ata, is_signer=False, is_writable=True),             # 5: associated_user
+        AccountMeta(buyer, is_signer=True, is_writable=True),                  # 6: user (signer)
+        AccountMeta(SYSTEM_PROGRAM, is_signer=False, is_writable=False),       # 7: system_program
+        AccountMeta(tp, is_signer=False, is_writable=False),                   # 8: token_program
+        AccountMeta(creator_vault, is_signer=False, is_writable=True),         # 9: creator_vault
+        AccountMeta(PUMP_EVENT_AUTHORITY, is_signer=False, is_writable=False), # 10: event_authority
+        AccountMeta(PUMP_FUN_PROGRAM, is_signer=False, is_writable=False),     # 11: program
+        AccountMeta(GLOBAL_VOLUME_ACCUMULATOR, is_signer=False, is_writable=False), # 12: global_volume_accumulator
+        AccountMeta(user_volume_accumulator, is_signer=False, is_writable=True),    # 13: user_volume_accumulator
+        AccountMeta(FEE_CONFIG, is_signer=False, is_writable=False),           # 14: fee_config
+        AccountMeta(FEE_PROGRAM, is_signer=False, is_writable=False),          # 15: fee_program
     ]
     return Instruction(PUMP_FUN_PROGRAM, data, accounts)
 
