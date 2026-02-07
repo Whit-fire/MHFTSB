@@ -95,27 +95,42 @@ class WalletService:
         return self._address
 
     async def _rpc_call(self, method: str, params: list, rpc_url: str = None) -> dict:
-        url = rpc_url
-        if not url:
-            ep = self.rpc_manager.get_tx_fetch_connection()
-            url = ep.url if ep else None
-        if not url:
+        urls = []
+        if rpc_url:
+            urls.append(rpc_url)
+        for ep in self.rpc_manager.get_all_available_rpcs():
+            if ep.url not in urls:
+                urls.append(ep.url)
+
+        if not urls:
             raise Exception("No RPC endpoint available")
 
-        async with aiohttp.ClientSession() as session:
-            payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
-                if "error" in data:
-                    # CRITICAL FIX: Detect auth failures and mark RPC as failed
-                    error = data["error"]
-                    err_code = error.get("code", 0) if isinstance(error, dict) else 0
-                    if err_code == -32401:
-                        logger.error(f"RPC auth failure ({method}): {error} - marking RPC as failed")
-                        self.rpc_manager.mark_auth_failure(url)
-                    else:
-                        logger.error(f"RPC error ({method}): {error}")
-                return data
+        payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+        last_error = None
+
+        for url in urls[:4]:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                        data = await resp.json()
+                        if "error" in data:
+                            error = data["error"]
+                            err_code = error.get("code", 0) if isinstance(error, dict) else 0
+                            if err_code == -32401:
+                                logger.error(f"RPC auth failure ({method}): {error} - marking RPC as failed")
+                                self.rpc_manager.mark_auth_failure(url)
+                                last_error = error
+                                continue
+                            logger.error(f"RPC error ({method}): {error}")
+                            last_error = error
+                            continue
+                        return data
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"RPC call failed ({method}) on {url[:50]}...: {e}")
+                continue
+
+        return {"error": last_error or "RPC call failed"}
 
     async def get_sol_balance(self, address: str = None) -> float:
         addr = address or self._address
