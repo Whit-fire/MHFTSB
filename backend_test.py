@@ -303,17 +303,17 @@ class HFTBotAPITester:
             return response
         return None
 
-    def test_positions(self):
-        """Test positions endpoints"""
+    def test_positions_with_sell_data(self):
+        """Test positions endpoints and verify new sell-related fields are present"""
         open_success, open_response = self.run_test(
-            "Get Open Positions",
+            "Get Open Positions (Sell Data Check)",
             "GET",
             "positions",
             200
         )
         
         history_success, history_response = self.run_test(
-            "Get Position History",
+            "Get Position History (Sell Data Check)",
             "GET",
             "positions/history",
             200
@@ -323,11 +323,165 @@ class HFTBotAPITester:
             positions = open_response.get('positions', [])
             self.log(f"   Open positions: {len(positions)}")
             
+            # Check if positions have the new sell-related fields
+            if positions:
+                pos = positions[0]
+                sell_fields = ['bonding_curve', 'associated_bonding_curve', 'token_program', 'creator', 'token_amount']
+                missing_fields = [field for field in sell_fields if field not in pos]
+                
+                if missing_fields:
+                    self.log(f"⚠️  Position missing sell fields: {missing_fields}")
+                    self.failed_tests.append({
+                        "name": "Position Sell Fields Check",
+                        "expected": "All sell fields present",
+                        "actual": f"Missing: {missing_fields}",
+                        "endpoint": "positions",
+                        "error": f"Position data missing sell fields: {missing_fields}"
+                    })
+                else:
+                    self.log("✅ Position contains all required sell fields")
+                    
+                # Log sample position data for verification
+                self.log(f"   Sample position sell data: bc={pos.get('bonding_curve', 'None')[:12] if pos.get('bonding_curve') else 'None'}...")
+            else:
+                self.log("   No positions to check for sell fields")
+            
         if history_success:
             history = history_response.get('positions', [])
             self.log(f"   Historical positions: {len(history)}")
             
         return open_success and history_success
+
+    def test_force_sell_simulation(self):
+        """Test force-sell endpoint in simulation mode"""
+        # First, get current positions to test force-sell on
+        positions_success, positions_response = self.run_test(
+            "Get Positions for Force-Sell Test",
+            "GET",
+            "positions",
+            200
+        )
+        
+        if not positions_success:
+            self.log("❌ Cannot test force-sell - failed to get positions")
+            return False
+            
+        positions = positions_response.get('positions', [])
+        if not positions:
+            self.log("⚠️  No open positions to test force-sell on")
+            # This is not a failure - just means no positions are available
+            return True
+            
+        # Test force-sell on the first position
+        position_id = positions[0]['id']
+        position_name = positions[0].get('token_name', 'Unknown')
+        
+        self.log(f"   Testing force-sell on position: {position_name} (ID: {position_id[:8]}...)")
+        
+        success, response = self.run_test(
+            f"Force-Sell Position {position_name}",
+            "POST",
+            f"positions/{position_id}/force-sell",
+            200
+        )
+        
+        if success:
+            if response.get('success'):
+                mode = response.get('mode', 'unknown')
+                self.log(f"✅ Force-sell successful in {mode} mode")
+                
+                # Verify position was closed
+                closed_pos = response.get('position', {})
+                if closed_pos.get('status') == 'closed':
+                    self.log(f"   Position correctly closed with reason: {closed_pos.get('close_reason', 'N/A')}")
+                else:
+                    self.log(f"⚠️  Position status after force-sell: {closed_pos.get('status', 'unknown')}")
+                    
+            elif 'error' in response:
+                error = response.get('error', 'Unknown error')
+                if 'missing' in error.lower() and ('bonding_curve' in error.lower() or 'token_amount' in error.lower()):
+                    self.log(f"⚠️  Expected error for missing sell data: {error}")
+                    # This is expected if position doesn't have sell data
+                    return True
+                else:
+                    self.log(f"❌ Unexpected force-sell error: {error}")
+                    return False
+            else:
+                self.log(f"❌ Force-sell returned unexpected response: {response}")
+                return False
+        
+        return success
+
+    def test_simulation_mode_with_sell_features(self):
+        """Test bot in simulation mode to verify sell features don't break existing functionality"""
+        self.log("\n🤖 Testing Simulation Mode with Sell Features...")
+        
+        # Ensure bot is stopped first
+        self.run_test("Stop Bot (cleanup)", "POST", "bot/stop", 200)
+        time.sleep(1)
+        
+        # Start in simulation mode
+        success = self.test_bot_start("simulation")
+        if not success:
+            return False
+            
+        # Let bot run for a few seconds to generate positions with sell data
+        self.log("   Letting bot run for 8 seconds to generate positions with sell data...")
+        time.sleep(8)
+        
+        # Check that positions are created with sell data
+        positions_success, positions_response = self.run_test(
+            "Check Positions Have Sell Data",
+            "GET",
+            "positions",
+            200
+        )
+        
+        if positions_success:
+            positions = positions_response.get('positions', [])
+            if positions:
+                # Check first position for sell data
+                pos = positions[0]
+                sell_fields = ['bonding_curve', 'associated_bonding_curve', 'token_program', 'creator', 'token_amount']
+                present_fields = [field for field in sell_fields if pos.get(field) is not None]
+                
+                self.log(f"   Position sell fields present: {len(present_fields)}/{len(sell_fields)}")
+                if len(present_fields) >= 3:  # At least some sell fields should be present
+                    self.log("✅ Positions contain sell data fields")
+                else:
+                    self.log(f"⚠️  Limited sell data in positions: {present_fields}")
+                    
+                # Test force-sell on a position if available
+                if positions:
+                    self.test_force_sell_simulation()
+            else:
+                self.log("   No positions created yet - this may be normal")
+        
+        # Check bot status
+        status_success, status_response = self.run_test(
+            "Bot Status During Simulation with Sell Features",
+            "GET",
+            "bot/status", 
+            200
+        )
+        
+        if status_success:
+            status = status_response.get('status', 'unknown')
+            mode = status_response.get('mode', 'unknown')
+            uptime = status_response.get('uptime_seconds', 0)
+            
+            self.log(f"   Simulation Status: {status}, Mode: {mode}, Uptime: {uptime}s")
+            
+            if status == "running" and mode == "simulation":
+                self.log("✅ Simulation mode with sell features working correctly")
+            else:
+                self.log(f"❌ Unexpected status/mode: {status}/{mode}")
+                return False
+        
+        # Stop bot
+        stop_success = self.run_test("Stop Bot After Sell Feature Test", "POST", "bot/stop", 200)
+        
+        return status_success and stop_success
 
     def test_metrics(self):
         """Test metrics endpoints"""
