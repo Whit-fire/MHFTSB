@@ -592,7 +592,7 @@ class HFTBotAPITester:
             ws_url = self.base_url.replace('https://', 'wss://').replace('http://', 'ws://') + '/api/ws'
             self.log(f"Testing WebSocket connection to: {ws_url}")
             
-            async with websockets.connect(ws_url, timeout=10) as websocket:
+            async with websockets.connect(ws_url) as websocket:
                 self.log("✅ WebSocket Connected")
                 
                 # Send ping
