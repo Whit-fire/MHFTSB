@@ -55,7 +55,6 @@ class ParseService:
         start = time.time()
 
         if simulation:
-            await asyncio.sleep(random.uniform(0.02, 0.05))
 
             mint = self._gen_addr()
             token_name = random.choice(TOKEN_NAMES) + "_" + ''.join(random.choices(string.digits, k=4))
