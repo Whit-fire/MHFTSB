@@ -192,3 +192,5 @@ agent_communication:
     message: "Clone & Inject testé: 37/37 tests passés. Aucune régression, architecture HFT conforme."
   - agent: "main"
     message: "CORRECTION CRITIQUE ParseService: Suppression WARNING spam bot_manager.py (lignes 106-107 DROP silencieux). Parse failures = normal (10-20% en HFT), maintenant logger.debug. Metrics: parse_dropped, parse_success. Retries 4→2, delays réduits. fetch_and_parse_tx() et _extract_pump_accounts() errors → logger.debug. ParseService best-effort. Tests: vérifier logs sans WARNING spam, mode simulation opérationnel."
+  - agent: "testing"
+    message: "ParseService corrections TESTÉES et VALIDÉES. ✅ WARNING spam éliminé: Aucun 'Could not parse TX' en WARNING après redémarrage. ✅ Metrics parse_success fonctionnelles: 13 succès enregistrés. ✅ Bot opérationnel: Mode simulation 100% succès. ✅ Logs propres: Aucun spam WARNING détecté. ✅ Best-effort parsing: Drops silencieux implémentés. ParseService maintenant tolérant et sans spam."
