@@ -551,14 +551,24 @@ class SolanaTrader:
         try:
             if not self._keypair:
                 if not self.load_keypair_from_wallet():
-                    return {"success": False, "error": "Wallet locked - unlock in Setup"}
+                    return {
+                        "success": False,
+                        "error": "Wallet locked - unlock in Setup",
+                        "error_type": "wallet_locked",
+                        "error_expected": True
+                    }
 
             try:
                 buy_amount_sol = float(buy_amount_sol)
             except Exception:
                 buy_amount_sol = 0.0
             if buy_amount_sol <= 0:
-                return {"success": False, "error": "Invalid buy amount"}
+                return {
+                    "success": False,
+                    "error": "Invalid buy amount",
+                    "error_type": "invalid_buy_amount",
+                    "error_expected": True
+                }
 
             bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=0.0)
             if not bc_ready:
