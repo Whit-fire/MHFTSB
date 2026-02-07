@@ -225,6 +225,10 @@ class SolanaTrader:
 
     async def wait_for_signature_status(self, signature: str, max_wait: float = 2.0) -> bool:
         rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
+        if non_helius:
+            rpcs = non_helius
+        rpcs = sorted(rpcs, key=lambda u: 0 if "extrnode" in u else 1)
         if not rpcs:
             return False
         start = time.time()
@@ -705,6 +709,10 @@ class SolanaTrader:
         for ep in self.rpc_manager.get_all_available_rpcs():
             if ep.url not in rpcs:
                 rpcs.append(ep.url)
+        non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
+        if non_helius:
+            rpcs = non_helius
+        rpcs = sorted(rpcs, key=lambda u: 0 if "extrnode" in u else 1)
         if not rpcs:
             logger.error("No RPC URL available for getTransaction")
             return None
@@ -726,12 +734,20 @@ class SolanaTrader:
                         data = await resp.json()
                         if "error" in data:
                             err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                            err_msg = data["error"].get("message", "") if isinstance(data["error"], dict) else str(data["error"])
                             if err_code == -32401:
                                 self.rpc_manager.mark_auth_failure(url)
                                 rpcs = [u for u in rpcs if u != url]
                                 if not rpcs:
                                     logger.error("All RPCs have auth failures")
                                     return None
+                                continue
+                            if err_code == -32003 or "daily request limit" in err_msg.lower():
+                                rpcs = [u for u in rpcs if u != url]
+                                if not rpcs:
+                                    logger.error("All RPCs have rate limit errors")
+                                    return None
+                                await asyncio.sleep(0.2)
                                 continue
                             # Drop silently - RPC errors are common in HFT, not worth warning
                             logger.debug(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
