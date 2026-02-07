@@ -693,65 +693,36 @@ class SolanaTrader:
             rpcs = non_helius
         rpcs = sorted(rpcs, key=lambda u: 0 if "extrnode" in u else 1)
         if not rpcs:
-            logger.error("No RPC URL available for getTransaction")
-            return None
+            return None, "rpc_unavailable"
 
-        # Wait briefly for signature to appear in RPC before fetching transaction
-        await self.wait_for_signature_status(signature, max_wait=2.0)
-
-        for attempt in range(max_retries):
-            url = rpcs[attempt % len(rpcs)]
-            try:
-                async with aiohttp.ClientSession() as session:
-                    commitment = "processed" if attempt < max(2, max_retries - 2) else "confirmed"
-                    payload = {
-                        "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
-                        "params": [signature, {"encoding": "jsonParsed", "commitment": commitment,
-                                               "maxSupportedTransactionVersion": 0}]
-                    }
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                        data = await resp.json()
-                        if "error" in data:
-                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
-                            err_msg = data["error"].get("message", "") if isinstance(data["error"], dict) else str(data["error"])
-                            if err_code == -32401:
-                                self.rpc_manager.mark_auth_failure(url)
-                                rpcs = [u for u in rpcs if u != url]
-                                if not rpcs:
-                                    logger.error("All RPCs have auth failures")
-                                    return None
-                                continue
-                            if err_code == -32003 or "daily request limit" in err_msg.lower():
-                                rpcs = [u for u in rpcs if u != url]
-                                if not rpcs:
-                                    logger.error("All RPCs have rate limit errors")
-                                    return None
-                                await asyncio.sleep(0.2)
-                                continue
-                            # Drop silently - RPC errors are common in HFT, not worth warning
-                            logger.debug(f"getTransaction RPC error (attempt {attempt+1}): {data['error']}")
-                            await asyncio.sleep(0.3 + 0.2 * attempt)
-                            continue
-                        tx_data = data.get("result")
-                        if not tx_data:
-                            if attempt < max_retries - 1:
-                                await asyncio.sleep(0.4 + 0.2 * attempt)
-                                continue
-                            # TEMPORARY DEBUG: Changed to INFO
-                            logger.info(f"[DEBUG] TX {signature[:16]}... not found after {max_retries} attempts (RPC returned null)")
-                            return None
-                        parsed = self._extract_pump_accounts(tx_data)
-                        if parsed:
-                            logger.info(f"Parsed TX {signature[:16]}... on attempt {attempt+1}: mint={parsed['mint'][:12]}...")
-                        else:
-                            # TEMPORARY DEBUG: Log when extraction fails
-                            logger.info(f"[DEBUG] TX {signature[:16]}... extraction failed (_extract_pump_accounts returned None)")
-                        return parsed
-            except Exception as e:
-                logger.debug(f"fetch_and_parse_tx attempt {attempt+1} failed: {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(0.2)
-        return None
+        url = rpcs[0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
+                    "params": [signature, {"encoding": "jsonParsed", "commitment": "confirmed",
+                                           "maxSupportedTransactionVersion": 0}]
+                }
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                        err_msg = data["error"].get("message", "") if isinstance(data["error"], dict) else str(data["error"])
+                        if err_code == -32401:
+                            self.rpc_manager.mark_auth_failure(url)
+                            return None, "rpc_auth"
+                        if err_code == -32003 or "daily request limit" in err_msg.lower():
+                            return None, "rpc_rate_limit"
+                        return None, "rpc_error"
+                    tx_data = data.get("result")
+                    if not tx_data:
+                        return None, "tx_null"
+                    parsed, reason = self._extract_pump_accounts(tx_data)
+                    if parsed:
+                        logger.info(f"Parsed TX {signature[:16]}... mint={parsed['mint'][:12]}...")
+                    return parsed, reason
+        except Exception:
+            return None, "rpc_exception"
 
     def _extract_pump_accounts(self, tx_data: Dict) -> Optional[Dict]:
         try:
