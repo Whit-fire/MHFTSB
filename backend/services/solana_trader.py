@@ -196,7 +196,7 @@ class SolanaTrader:
         self, mint_str: str, bonding_curve_str: str,
         assoc_bonding_curve_str: str, buy_amount_sol: float,
         slippage_pct: float = 25.0, blockhash_ctx: Dict = None,
-        token_program_str: str = None
+        token_program_str: str = None, creator_str: str = None
     ) -> Optional[Dict]:
         if not self._keypair:
             if not self.load_keypair_from_wallet():
@@ -214,15 +214,15 @@ class SolanaTrader:
             buyer = self._keypair.pubkey()
             buyer_ata = get_associated_token_address(buyer, mint, tp)
 
-            # Fetch blockhash and bonding curve creator in parallel
-            if not blockhash_ctx:
-                blockhash_ctx, creator = await asyncio.gather(
-                    self.get_latest_blockhash(),
-                    self.fetch_bonding_curve_creator(bonding_curve_str)
-                )
+            # Get creator for creator_vault derivation
+            creator = None
+            if creator_str:
+                creator = Pubkey.from_string(creator_str)
             else:
                 creator = await self.fetch_bonding_curve_creator(bonding_curve_str)
 
+            if not blockhash_ctx:
+                blockhash_ctx = await self.get_latest_blockhash()
             if not blockhash_ctx or not blockhash_ctx.get("blockhash"):
                 logger.error("Failed to get blockhash")
                 return None
@@ -233,10 +233,8 @@ class SolanaTrader:
                     [b"creator-vault", bytes(creator)], PUMP_FUN_PROGRAM
                 )
             else:
-                logger.warning("Could not fetch BC creator, using fallback")
-                creator_vault, _ = Pubkey.find_program_address(
-                    [b"creator-vault", bytes(buyer)], PUMP_FUN_PROGRAM
-                )
+                logger.error("No creator available for creator_vault derivation")
+                return None
 
             # Derive user_volume_accumulator PDA
             user_volume_acc, _ = Pubkey.find_program_address(
