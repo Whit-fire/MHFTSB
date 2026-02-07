@@ -353,6 +353,11 @@ class SolanaTrader:
                 else:
                     keys_list.append(str(ak))
 
+            # Detect which token program is used in this transaction
+            token_program_str = TOKEN_2022_PROGRAM_STR  # default to Token-2022
+            if TOKEN_PROGRAM_STR in keys_list and TOKEN_2022_PROGRAM_STR not in keys_list:
+                token_program_str = TOKEN_PROGRAM_STR
+
             instructions = tx_msg.get("instructions", [])
             pump_ix = None
             for ix in instructions:
@@ -393,10 +398,12 @@ class SolanaTrader:
                 assoc_bonding_curve = ix_accounts[4] if len(ix_accounts) > 4 else None
 
             if mint and bonding_curve:
+                logger.info(f"Extracted: mint={mint[:12]}... token_program={'T22' if token_program_str == TOKEN_2022_PROGRAM_STR else 'SPL'}")
                 return {
                     "mint": mint,
                     "bonding_curve": bonding_curve,
                     "associated_bonding_curve": assoc_bonding_curve or "",
+                    "token_program": token_program_str,
                     "accounts": ix_accounts,
                     "all_keys": keys_list,
                 }
