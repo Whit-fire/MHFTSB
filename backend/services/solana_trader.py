@@ -735,7 +735,7 @@ class SolanaTrader:
             tx_msg = tx_data.get("transaction", {}).get("message", {})
             account_keys = tx_msg.get("accountKeys", [])
             if not account_keys:
-                return None
+                return None, "no_account_keys"
 
             keys_list = []
             for ak in account_keys:
