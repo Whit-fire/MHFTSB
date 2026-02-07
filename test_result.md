@@ -120,7 +120,17 @@ backend:
         agent: "testing"
         comment: "Tous les tests passés (34/34). Mode simulation fonctionne sans régression. Aucune erreur détectée."
 
-  - task: "Implémentation de la fonctionnalité de vente (sell)"
+  - task: "Implémentation Clone & Inject pour respecter les règles Pump.fun HFT"
+    implemented: true
+    working: "NA"
+    file: "backend/services/solana_trader.py, backend/services/bot_manager.py"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Refonte complète de l'architecture de trading pour respecter Clone & Inject. Ajout de clone_and_inject_buy_transaction() et execute_buy_cloned() qui clonent strictement l'instruction originale sans PDA derivation. Modification de _extract_pump_accounts() pour extraire account_metas_clone avec isSigner et isWritable. bot_manager.py utilise maintenant execute_buy_cloned() au lieu de execute_buy(). ZÉRO dérivation de PDA dans le hot path (creator_vault, user_volume_accumulator non dérivés, clonés depuis TX originale). Ordre strict préservé, seuls signer et buyer_ata modifiés aux index 6 et 5."
     implemented: true
     working: true
     file: "backend/services/solana_trader.py, backend/services/position_manager.py, backend/server.py, backend/services/bot_manager.py"
