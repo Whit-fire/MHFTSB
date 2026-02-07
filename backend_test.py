@@ -360,31 +360,59 @@ class HFTBotAPITester:
         return metrics_success and kpi_success
 
     def test_solana_trader_import(self):
-        """Test that SolanaTrader imports correctly and has the new method"""
-        self.log("Testing SolanaTrader import and wait_for_bonding_curve_init method...")
+        """Test that SolanaTrader imports correctly and has the new sell methods"""
+        self.log("Testing SolanaTrader import and sell functionality...")
         try:
             # Test import
             import sys
             sys.path.append('/app/backend')
-            from services.solana_trader import SolanaTrader
+            from services.solana_trader import SolanaTrader, build_sell_instruction
+            from services.position_manager import PositionData
             
-            # Check if the class has the new method
-            if hasattr(SolanaTrader, 'wait_for_bonding_curve_init'):
-                self.log("✅ SolanaTrader imports correctly and has wait_for_bonding_curve_init method")
-                self.tests_run += 1
-                self.tests_passed += 1
-                return True
-            else:
-                self.log("❌ SolanaTrader missing wait_for_bonding_curve_init method")
+            # Check if the class has the required methods
+            missing_methods = []
+            if not hasattr(SolanaTrader, 'wait_for_bonding_curve_init'):
+                missing_methods.append('wait_for_bonding_curve_init')
+            if not hasattr(SolanaTrader, 'execute_sell'):
+                missing_methods.append('execute_sell')
+            if not hasattr(SolanaTrader, 'build_sell_transaction'):
+                missing_methods.append('build_sell_transaction')
+            
+            # Check if build_sell_instruction function exists
+            if 'build_sell_instruction' not in globals() and 'build_sell_instruction' not in locals():
+                missing_methods.append('build_sell_instruction (function)')
+            
+            # Check PositionData for new fields
+            pos_test = PositionData("test_mint", "test_token", 0.001, 0.03, 80.0, "test_sig")
+            missing_fields = []
+            if not hasattr(pos_test, 'bonding_curve'):
+                missing_fields.append('bonding_curve')
+            if not hasattr(pos_test, 'associated_bonding_curve'):
+                missing_fields.append('associated_bonding_curve')
+            if not hasattr(pos_test, 'token_program'):
+                missing_fields.append('token_program')
+            if not hasattr(pos_test, 'creator'):
+                missing_fields.append('creator')
+            if not hasattr(pos_test, 'token_amount'):
+                missing_fields.append('token_amount')
+            
+            if missing_methods or missing_fields:
+                error_msg = f"Missing methods: {missing_methods}, Missing fields: {missing_fields}"
+                self.log(f"❌ SolanaTrader missing components: {error_msg}")
                 self.failed_tests.append({
-                    "name": "SolanaTrader Method Check",
-                    "expected": "wait_for_bonding_curve_init method exists",
-                    "actual": "Method not found",
+                    "name": "SolanaTrader Sell Components Check",
+                    "expected": "All sell methods and PositionData fields exist",
+                    "actual": "Missing components",
                     "endpoint": "N/A",
-                    "error": "Missing wait_for_bonding_curve_init method"
+                    "error": error_msg
                 })
                 self.tests_run += 1
                 return False
+            else:
+                self.log("✅ SolanaTrader imports correctly with all sell functionality")
+                self.tests_run += 1
+                self.tests_passed += 1
+                return True
                 
         except ImportError as e:
             self.log(f"❌ SolanaTrader import failed: {e}")
