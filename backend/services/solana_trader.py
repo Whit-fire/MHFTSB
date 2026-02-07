@@ -203,8 +203,7 @@ class SolanaTrader:
                 logger.error("No keypair loaded")
                 return None
 
-        # Determine which token program to use
-        tp = TOKEN_2022_PROGRAM  # default to Token-2022 for pump.fun
+        tp = TOKEN_2022_PROGRAM
         if token_program_str == TOKEN_PROGRAM_STR:
             tp = TOKEN_PROGRAM
 
@@ -215,11 +214,36 @@ class SolanaTrader:
             buyer = self._keypair.pubkey()
             buyer_ata = get_associated_token_address(buyer, mint, tp)
 
+            # Fetch blockhash and bonding curve creator in parallel
+            blockhash_task = self.get_latest_blockhash() if not blockhash_ctx else asyncio.coroutine(lambda: blockhash_ctx)()
+            creator_task = self.fetch_bonding_curve_creator(bonding_curve_str)
+
             if not blockhash_ctx:
-                blockhash_ctx = await self.get_latest_blockhash()
+                blockhash_ctx, creator = await asyncio.gather(
+                    self.get_latest_blockhash(), creator_task
+                )
+            else:
+                creator = await creator_task
+
             if not blockhash_ctx or not blockhash_ctx.get("blockhash"):
                 logger.error("Failed to get blockhash")
                 return None
+
+            # Derive creator_vault PDA
+            if creator:
+                creator_vault, _ = Pubkey.find_program_address(
+                    [b"creator-vault", bytes(creator)], PUMP_FUN_PROGRAM
+                )
+            else:
+                logger.warning("Could not fetch BC creator, using fallback")
+                creator_vault, _ = Pubkey.find_program_address(
+                    [b"creator-vault", bytes(buyer)], PUMP_FUN_PROGRAM
+                )
+
+            # Derive user_volume_accumulator PDA
+            user_volume_acc, _ = Pubkey.find_program_address(
+                [b"user_volume_accumulator", bytes(buyer)], PUMP_FUN_PROGRAM
+            )
 
             max_sol_lamports = int(buy_amount_sol * 1e9)
             token_amount = int(max_sol_lamports * 30)
@@ -231,7 +255,8 @@ class SolanaTrader:
                 build_create_ata_idempotent(buyer, buyer, mint, tp),
                 build_buy_instruction(
                     buyer, mint, bonding_curve, assoc_bc, buyer_ata,
-                    token_amount, max_sol_with_slippage, tp
+                    token_amount, max_sol_with_slippage,
+                    creator_vault, user_volume_acc, tp
                 ),
             ]
 
