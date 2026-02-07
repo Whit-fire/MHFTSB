@@ -121,6 +121,10 @@ class WalletService:
                                 self.rpc_manager.mark_auth_failure(url)
                                 last_error = error
                                 continue
+                            if err_code == -32003:
+                                self.rpc_manager.mark_rate_limit(url)
+                                last_error = error
+                                continue
                             logger.error(f"RPC error ({method}): {error}")
                             last_error = error
                             continue
