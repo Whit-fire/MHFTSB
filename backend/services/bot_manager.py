@@ -36,11 +36,24 @@ class BotManager:
         self.status = "running"
         self.start_time = time.time()
         await self.log("INFO", "bot_manager", f"Bot starting in {self.mode.upper()} mode")
+
         self._tasks = [
-            asyncio.create_task(self._simulation_loop()),
             asyncio.create_task(self._position_eval_loop()),
             asyncio.create_task(self._metrics_broadcast_loop()),
         ]
+
+        if self.mode == "simulation":
+            self._tasks.append(asyncio.create_task(self._simulation_loop()))
+        else:
+            if self.solana_trader:
+                self.solana_trader.load_keypair_from_wallet()
+            if self.liquidity_monitor:
+                self.liquidity_monitor.on_candidate = self._on_live_candidate
+                await self.liquidity_monitor.start()
+                await self.log("INFO", "bot_manager", f"Live WSS monitoring started ({len(self.liquidity_monitor._wss_urls)} endpoints)")
+            else:
+                await self.log("WARN", "bot_manager", "No liquidity monitor configured for live mode")
+
         await self.log("INFO", "bot_manager", "Bot started successfully")
         return {"status": "running", "mode": self.mode}
 
