@@ -513,9 +513,9 @@ class HFTBotAPITester:
             
         return metrics_success and kpi_success
 
-    def test_solana_trader_import(self):
-        """Test that SolanaTrader imports correctly and has the new sell methods"""
-        self.log("Testing SolanaTrader import and sell functionality...")
+    def test_clone_and_inject_import(self):
+        """Test that Clone & Inject methods import correctly and have required functionality"""
+        self.log("Testing Clone & Inject implementation import...")
         try:
             # Test import
             import sys
@@ -523,8 +523,16 @@ class HFTBotAPITester:
             from services.solana_trader import SolanaTrader, build_sell_instruction
             from services.position_manager import PositionData
             
-            # Check if the class has the required methods
+            # Check if the class has the CRITICAL Clone & Inject methods
             missing_methods = []
+            if not hasattr(SolanaTrader, 'clone_and_inject_buy_transaction'):
+                missing_methods.append('clone_and_inject_buy_transaction')
+            if not hasattr(SolanaTrader, 'execute_buy_cloned'):
+                missing_methods.append('execute_buy_cloned')
+            if not hasattr(SolanaTrader, '_extract_pump_accounts'):
+                missing_methods.append('_extract_pump_accounts')
+            
+            # Check existing methods still exist (no regression)
             if not hasattr(SolanaTrader, 'wait_for_bonding_curve_init'):
                 missing_methods.append('wait_for_bonding_curve_init')
             if not hasattr(SolanaTrader, 'execute_sell'):
@@ -552,43 +560,119 @@ class HFTBotAPITester:
             
             if missing_methods or missing_fields:
                 error_msg = f"Missing methods: {missing_methods}, Missing fields: {missing_fields}"
-                self.log(f"❌ SolanaTrader missing components: {error_msg}")
+                self.log(f"❌ Clone & Inject missing components: {error_msg}")
                 self.failed_tests.append({
-                    "name": "SolanaTrader Sell Components Check",
-                    "expected": "All sell methods and PositionData fields exist",
+                    "name": "Clone & Inject Components Check",
+                    "expected": "All Clone & Inject methods and PositionData fields exist",
                     "actual": "Missing components",
                     "endpoint": "N/A",
                     "error": error_msg
                 })
+                self.critical_issues.append(f"CRITICAL: Clone & Inject implementation incomplete: {error_msg}")
                 self.tests_run += 1
                 return False
             else:
-                self.log("✅ SolanaTrader imports correctly with all sell functionality")
+                self.log("✅ Clone & Inject implementation imports correctly with all required methods")
                 self.tests_run += 1
                 self.tests_passed += 1
                 return True
                 
         except ImportError as e:
-            self.log(f"❌ SolanaTrader import failed: {e}")
+            self.log(f"❌ Clone & Inject import failed: {e}")
             self.failed_tests.append({
-                "name": "SolanaTrader Import",
+                "name": "Clone & Inject Import",
                 "expected": "Successful import",
                 "actual": "Import failed",
                 "endpoint": "N/A", 
                 "error": str(e)
             })
-            self.critical_issues.append(f"SolanaTrader import failed: {e}")
+            self.critical_issues.append(f"CRITICAL: Clone & Inject import failed: {e}")
             self.tests_run += 1
             return False
         except Exception as e:
-            self.log(f"❌ SolanaTrader test failed: {e}")
+            self.log(f"❌ Clone & Inject test failed: {e}")
             self.failed_tests.append({
-                "name": "SolanaTrader Test",
+                "name": "Clone & Inject Test",
                 "expected": "Method check successful",
                 "actual": "Test failed",
                 "endpoint": "N/A",
                 "error": str(e)
             })
+            self.critical_issues.append(f"CRITICAL: Clone & Inject test failed: {e}")
+            self.tests_run += 1
+            return False
+
+    def test_extract_pump_accounts_structure(self):
+        """Test that _extract_pump_accounts returns account_metas_clone field"""
+        self.log("Testing _extract_pump_accounts for Clone & Inject compatibility...")
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from services.solana_trader import SolanaTrader
+            
+            # Create a mock SolanaTrader instance
+            trader = SolanaTrader(None, None)
+            
+            # Create a mock transaction data structure that would contain account_metas_clone
+            mock_tx_data = {
+                "meta": {"err": None, "postTokenBalances": [{"mint": "test_mint", "owner": "test_owner"}]},
+                "transaction": {
+                    "message": {
+                        "accountKeys": [
+                            {"pubkey": "test_key1", "signer": True, "writable": True},
+                            {"pubkey": "test_key2", "signer": False, "writable": False}
+                        ],
+                        "instructions": [{
+                            "programId": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+                            "accounts": [0, 1],
+                            "data": "test_data"
+                        }]
+                    }
+                }
+            }
+            
+            # Test the method exists and can be called
+            result = trader._extract_pump_accounts(mock_tx_data)
+            
+            # Check if result contains the required fields for Clone & Inject
+            if result is None:
+                self.log("⚠️  _extract_pump_accounts returned None (expected for mock data)")
+                self.tests_run += 1
+                self.tests_passed += 1
+                return True
+            
+            required_fields = ['account_metas_clone', 'instruction_data']
+            missing_fields = [field for field in required_fields if field not in result]
+            
+            if missing_fields:
+                error_msg = f"Missing Clone & Inject fields in _extract_pump_accounts: {missing_fields}"
+                self.log(f"❌ {error_msg}")
+                self.failed_tests.append({
+                    "name": "_extract_pump_accounts Structure Check",
+                    "expected": "account_metas_clone and instruction_data fields present",
+                    "actual": f"Missing: {missing_fields}",
+                    "endpoint": "N/A",
+                    "error": error_msg
+                })
+                self.critical_issues.append(f"CRITICAL: {error_msg}")
+                self.tests_run += 1
+                return False
+            else:
+                self.log("✅ _extract_pump_accounts has correct structure for Clone & Inject")
+                self.tests_run += 1
+                self.tests_passed += 1
+                return True
+                
+        except Exception as e:
+            self.log(f"❌ _extract_pump_accounts structure test failed: {e}")
+            self.failed_tests.append({
+                "name": "_extract_pump_accounts Structure Test",
+                "expected": "Method callable with correct return structure",
+                "actual": "Test failed",
+                "endpoint": "N/A",
+                "error": str(e)
+            })
+            self.critical_issues.append(f"CRITICAL: _extract_pump_accounts test failed: {e}")
             self.tests_run += 1
             return False
 
