@@ -120,6 +120,18 @@ backend:
         agent: "testing"
         comment: "Tous les tests passés (34/34). Mode simulation fonctionne sans régression. Aucune erreur détectée."
 
+  - task: "Correction ParseService - Supprimer WARNING spam et rendre le parsing tolérant"
+    implemented: true
+    working: "NA"
+    file: "backend/services/bot_manager.py, backend/services/solana_trader.py"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Suppression des WARNING spam dans bot_manager.py lignes 106-107. Parse failures sont maintenant des drops silencieux (logger.debug) car 10-20% de fails sont NORMAUX en HFT. Ajout metrics parse_dropped et parse_success pour tracking. Réduction max_retries de 4 à 2 dans fetch_and_parse_tx() pour faster failure detection. Réduction délais entre retries (0.2s au lieu de 0.3-0.5s). Conversion logger.warning/error en logger.debug pour getTransaction RPC errors et _extract_pump_accounts exceptions. ParseService maintenant best-effort, jamais bloquant."
+
   - task: "Implémentation Clone & Inject pour respecter les règles Pump.fun HFT"
     implemented: true
     working: true
