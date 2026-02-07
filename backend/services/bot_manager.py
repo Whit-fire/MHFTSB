@@ -110,7 +110,8 @@ class BotManager:
             mint = parsed["mint"]
             bc = parsed["bonding_curve"]
             abc = parsed.get("associated_bonding_curve", "")
-            logger.info(f"Parsed CREATE mint={mint[:12]}... bc={bc[:12]}... in {parse_ms:.0f}ms")
+            token_prog = parsed.get("token_program")
+            logger.info(f"Parsed CREATE mint={mint[:12]}... bc={bc[:12]}... tp={'T22' if token_prog and 'zQd' in token_prog else 'SPL'} in {parse_ms:.0f}ms")
             await self.log("INFO", "parse_service",
                            f"Parsed CREATE mint={mint[:8]}... bc={bc[:8]}... in {parse_ms:.0f}ms")
 
@@ -118,7 +119,8 @@ class BotManager:
 
             exec_start = time.time()
             result = await self.solana_trader.execute_buy(
-                mint, bc, abc, buy_amount, slippage_pct=25.0
+                mint, bc, abc, buy_amount, slippage_pct=25.0,
+                token_program_str=token_prog
             )
             exec_ms = (time.time() - exec_start) * 1000
             self.metrics.record_latency("execution_latency_ms", exec_ms)
