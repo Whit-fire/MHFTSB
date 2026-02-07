@@ -74,6 +74,73 @@ class BotManager:
         await self.stop()
         return {"status": "panic_executed", "positions_closed": True}
 
+    async def _on_live_candidate(self, candidate: dict):
+        """Handle a real Pump.fun CREATE event from WSS."""
+        if not self._running:
+            return
+        sig = candidate["signature"]
+        self.metrics.increment("wss_events_total")
+        await self.log("INFO", "liquidity_monitor", f"LIVE CREATE detected: {sig[:20]}...")
+
+        entered = await self.hft_gate.try_enter(sig)
+        self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
+        if not entered:
+            self.metrics.increment("hft_dropped_count")
+            await self.log("WARN", "hft_gate", "DROP - max inflight")
+            return
+
+        try:
+            start_t = time.time()
+
+            if not self.solana_trader:
+                await self.log("ERROR", "execution", "No solana_trader configured")
+                return
+
+            parsed = await self.solana_trader.fetch_and_parse_tx(sig)
+            parse_ms = (time.time() - start_t) * 1000
+            self.metrics.record_latency("parse_latency_ms", parse_ms)
+
+            if not parsed:
+                await self.log("WARN", "parse_service", f"Could not parse TX {sig[:16]}...")
+                return
+
+            mint = parsed["mint"]
+            bc = parsed["bonding_curve"]
+            abc = parsed.get("associated_bonding_curve", "")
+            await self.log("INFO", "parse_service",
+                           f"Parsed CREATE mint={mint[:8]}... bc={bc[:8]}... in {parse_ms:.0f}ms")
+
+            buy_amount = self.config.get("FILTERS", {}).get("MAX_INITIAL_BUY_AMOUNT", 0.03)
+
+            exec_start = time.time()
+            result = await self.solana_trader.execute_buy(
+                mint, bc, abc, buy_amount, slippage_pct=25.0
+            )
+            exec_ms = (time.time() - exec_start) * 1000
+            self.metrics.record_latency("execution_latency_ms", exec_ms)
+            self.metrics.record_latency("jito_send_latency_ms", exec_ms)
+
+            if result["success"]:
+                pos_id = await self.position_manager.register_buy(
+                    mint, mint[:8] + "...", result.get("entry_price_sol", buy_amount),
+                    buy_amount, 80.0, result["signature"]
+                )
+                total_ms = (time.time() - start_t) * 1000
+                self.metrics.record_latency("wss_to_jito_ms", total_ms)
+                self.metrics.increment("trades_success")
+                await self.log("TRADE", "execution",
+                               f"BUY LIVE mint={mint[:8]}... sig={result['signature'][:16]}... latency={total_ms:.0f}ms")
+            else:
+                self.metrics.increment("trades_failed")
+                await self.log("ERROR", "execution", f"BUY FAILED: {result.get('error')}")
+
+        except Exception as e:
+            logger.error(f"Live candidate error: {e}")
+            await self.log("ERROR", "bot_manager", f"Live error: {e}")
+        finally:
+            await self.hft_gate.exit(sig)
+            self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
+
     async def _simulation_loop(self):
         while self._running:
             try:
