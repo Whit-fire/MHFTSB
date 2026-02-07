@@ -118,7 +118,19 @@ backend:
         comment: "Ajout de la fonction wait_for_bonding_curve_init() qui vérifie que le compte bonding_curve est possédé par le programme pump.fun (6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P) avant d'envoyer la transaction. Délai adaptatif 250-400ms, timeout 8s, rotation RPC. Fonction appelée dans execute_buy() avant build_buy_transaction()."
       - working: true
         agent: "testing"
-        comment: "P0 Fix VERIFIED ✅ - Tests complets effectués: 1) Import et syntaxe: SolanaTrader s'importe correctement et possède la méthode wait_for_bonding_curve_init. 2) Mode simulation: Bot démarre et fonctionne sans erreur en mode simulation pendant 8+ secondes, aucune régression détectée. 3) Configuration: Endpoints accessibles, buy_amount configuré via variable d'environnement DEFAULT_BUY_AMOUNT=0.03. 4) Métriques: Tous les endpoints de métriques fonctionnent (alternative au dashboard). 5) Santé: GET /api/health retourne status: ok. 6) WebSocket: Connexion et ping/pong fonctionnels. Tous les 34 tests passent (100% succès). Aucune erreur dans les logs backend pendant les tests."
+        comment: "Tous les tests passés (34/34). Mode simulation fonctionne sans régression. Aucune erreur détectée."
+
+  - task: "Implémentation de la fonctionnalité de vente (sell)"
+    implemented: true
+    working: "NA"
+    file: "backend/services/solana_trader.py, backend/services/position_manager.py, backend/server.py, backend/services/bot_manager.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Ajout de build_sell_instruction() et execute_sell() dans solana_trader.py. Modification de PositionData pour stocker bonding_curve, associated_bonding_curve, token_program, creator et token_amount nécessaires pour l'exécution des ventes. Mise à jour de l'endpoint POST /api/positions/{position_id}/force-sell pour exécuter des ventes réelles on-chain en mode live. Mise à jour de bot_manager.py pour passer les données de vente lors de l'enregistrement d'une position."
 
 metadata:
   created_by: "main_agent"
