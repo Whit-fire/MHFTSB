@@ -223,6 +223,113 @@ class SolanaTrader:
                 logger.error(f"getLatestBlockhash failed on {url[:40]}...: {e}")
         return None
 
+
+    async def clone_and_inject_buy_transaction(
+        self, parsed_create_data: Dict, buy_amount_sol: float,
+        slippage_pct: float = 25.0, blockhash_ctx: Dict = None
+    ) -> Optional[Dict]:
+        """Clone & Inject: Clone the original CREATE instruction and inject our buy."""
+        if not self._keypair:
+            if not self.load_keypair_from_wallet():
+                logger.error("No keypair loaded")
+                return None
+
+        try:
+            mint_str = parsed_create_data["mint"]
+            token_program_str = parsed_create_data.get("token_program", TOKEN_2022_PROGRAM_STR)
+            account_metas_clone = parsed_create_data.get("account_metas_clone", [])
+            
+            if not account_metas_clone:
+                logger.error("No account_metas_clone available - cannot perform Clone & Inject")
+                return None
+            
+            mint = Pubkey.from_string(mint_str)
+            buyer = self._keypair.pubkey()
+            
+            # Determine token program
+            tp = TOKEN_2022_PROGRAM if token_program_str == TOKEN_2022_PROGRAM_STR else TOKEN_PROGRAM
+            buyer_ata = get_associated_token_address(buyer, mint, tp)
+            
+            if not blockhash_ctx:
+                blockhash_ctx = await self.get_latest_blockhash()
+            if not blockhash_ctx or not blockhash_ctx.get("blockhash"):
+                logger.error("Failed to get blockhash")
+                return None
+
+            # Calculate buy parameters
+            max_sol_lamports = int(buy_amount_sol * 1e9)
+            token_amount = int(max_sol_lamports * 30)
+            max_sol_with_slippage = int(max_sol_lamports * (1 + slippage_pct / 100))
+
+            # Build instruction data for BUY (discriminator + amount + max_sol_cost + track_volume)
+            data = BUY_DISCRIMINATOR + struct.pack("<Q", token_amount) + struct.pack("<Q", max_sol_with_slippage) + bytes([0])
+
+            # Clone account metas EXACTLY from original CREATE instruction
+            # Modify ONLY: signer (index 6) and associated_user (index 5 = buyer_ata)
+            cloned_accounts = []
+            for i, am in enumerate(account_metas_clone):
+                pubkey = Pubkey.from_string(am["pubkey"])
+                is_signer = am["isSigner"]
+                is_writable = am["isWritable"]
+                
+                # Replace creator (signer at index 6) with our buyer
+                if i == 6 and is_signer:
+                    pubkey = buyer
+                    logger.info(f"CLONE: Replacing signer at index {i} with buyer {str(buyer)[:12]}...")
+                
+                # Replace associated_user (index 5) with our buyer_ata
+                elif i == 5:
+                    pubkey = buyer_ata
+                    logger.info(f"CLONE: Replacing buyer_ata at index {i} with {str(buyer_ata)[:12]}...")
+                
+                cloned_accounts.append(AccountMeta(pubkey, is_signer=is_signer, is_writable=is_writable))
+
+            # Build the cloned buy instruction
+            buy_ix = Instruction(PUMP_FUN_PROGRAM, data, cloned_accounts)
+
+            # Build complete transaction
+            ixs = [
+                set_compute_unit_limit(200_000),
+                set_compute_unit_price(500_000),
+                build_create_ata_idempotent(buyer, buyer, mint, tp),
+                buy_ix,  # CLONED instruction
+            ]
+
+            if self.jito_tip_account:
+                tip_lamports = int(self.tip_amount_sol * 1e9)
+                tip_ix = transfer(TransferParams(
+                    from_pubkey=buyer,
+                    to_pubkey=Pubkey.from_string(self.jito_tip_account),
+                    lamports=tip_lamports
+                ))
+                ixs.append(tip_ix)
+
+            recent_hash = Hash.from_string(blockhash_ctx["blockhash"])
+            msg = Message.new_with_blockhash(ixs, buyer, recent_hash)
+            tx = Transaction.new_unsigned(msg)
+            tx.sign([self._keypair], recent_hash)
+
+            tx_bytes = bytes(tx)
+            import base64
+            tx_b64 = base64.b64encode(tx_bytes).decode()
+
+            logger.info(f"Built CLONED buy TX for mint={mint_str[:8]}... amount={buy_amount_sol} SOL (Clone & Inject)")
+            return {
+                "tx_bytes": tx_bytes,
+                "tx_base64": tx_b64,
+                "mint": mint_str,
+                "buyer": str(buyer),
+                "buyer_ata": str(buyer_ata),
+                "amount_sol": buy_amount_sol,
+                "blockhash": blockhash_ctx["blockhash"],
+                "rpc_url": blockhash_ctx.get("rpc_url"),
+            }
+
+        except Exception as e:
+            logger.error(f"clone_and_inject_buy_transaction failed: {e}", exc_info=True)
+            return None
+
+
     async def build_buy_transaction(
         self, mint_str: str, bonding_curve_str: str,
         assoc_bonding_curve_str: str, buy_amount_sol: float,
