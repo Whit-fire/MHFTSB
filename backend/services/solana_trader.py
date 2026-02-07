@@ -640,14 +640,24 @@ class SolanaTrader:
         try:
             if not self._keypair:
                 if not self.load_keypair_from_wallet():
-                    return {"success": False, "error": "Wallet locked - unlock in Setup"}
+                    return {
+                        "success": False,
+                        "error": "Wallet locked - unlock in Setup",
+                        "error_type": "wallet_locked",
+                        "error_expected": True
+                    }
 
             try:
                 buy_amount_sol = float(buy_amount_sol)
             except Exception:
                 buy_amount_sol = 0.0
             if buy_amount_sol <= 0:
-                return {"success": False, "error": "Invalid buy amount"}
+                return {
+                    "success": False,
+                    "error": "Invalid buy amount",
+                    "error_type": "invalid_buy_amount",
+                    "error_expected": True
+                }
 
             # CRITICAL FIX: Wait for bonding_curve to be initialized before sending TX
             logger.info("Waiting for bonding_curve account to be initialized by pump.fun...")
