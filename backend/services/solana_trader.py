@@ -999,7 +999,6 @@ class SolanaTrader:
                                 mint = post_bal.get("mint")
                                 if mint == expected_mint:
                                     token_mint = mint
-                                    owner = post_bal.get("owner")
                                     post_amount = float(post_bal.get("uiTokenAmount", {}).get("uiAmount", 0))
                                     
                                     # Find pre balance for same account
