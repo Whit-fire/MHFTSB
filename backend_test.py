@@ -939,22 +939,25 @@ class HFTBotAPITester:
         # Test 2: _extract_pump_accounts structure for Clone & Inject
         self.test_extract_pump_accounts_structure()
         
-        # Test 2: Health check
+        # Test 3: Health check
         if not self.test_health():
             self.log("❌ Health check failed - may indicate server issues", "ERROR")
         
-        # Test 3: Configuration
+        # Test 4: Configuration
         config = self.test_config_get()
         self.test_configuration_buy_amount()
         
-        # Test 4: Simulation mode with sell features (comprehensive test)
-        self.test_simulation_mode_with_sell_features()
+        # Test 5: Simulation mode with Clone & Inject (CRITICAL TEST)
+        self.test_simulation_mode_clone_and_inject()
         
-        # Test 5: Position endpoints with sell data verification
+        # Test 6: Position endpoints with Clone & Inject data verification
         self.test_positions_with_sell_data()
         
-        # Test 6: Metrics and KPI (should work correctly with sell features)
+        # Test 7: Metrics and KPI (should work correctly with Clone & Inject)
         self.test_metrics()
+        
+        # Test 8: Dashboard/metrics endpoints
+        self.test_dashboard_metrics()
         
         # Additional standard tests
         self.log("\n📋 Standard API Tests...")
