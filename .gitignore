@@ -125,3 +125,7 @@ mon_bot_HFT.tar.gz
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
