@@ -59,7 +59,7 @@ solana_trader = SolanaTrader(rpc_manager, wallet_service)
 async def _live_candidate_placeholder(candidate):
     pass
 
-liquidity_monitor = LiquidityMonitorService(on_candidate=_live_candidate_placeholder)
+liquidity_monitor = LiquidityMonitorService(on_candidate=_live_candidate_placeholder, rpc_manager=rpc_manager)
 
 bot_manager = BotManager(
     db, current_config, rpc_manager, hft_gate, parse_service,
