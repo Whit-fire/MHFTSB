@@ -103,13 +103,14 @@ class LiquidityMonitorService:
         non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
         if non_helius:
             rpcs = non_helius
+        rpcs = sorted(rpcs, key=lambda u: 0 if "extrnode" in u else 1)
         url = rpcs[self._poll_index % len(rpcs)]
         self._poll_index += 1
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "getSignaturesForAddress",
-            "params": [PUMP_FUN_PROGRAM, {"limit": 20, "commitment": "processed"}]
+            "params": [PUMP_FUN_PROGRAM, {"limit": 20, "commitment": "confirmed"}]
         }
         try:
             async with aiohttp.ClientSession() as session:
@@ -119,6 +120,8 @@ class LiquidityMonitorService:
                         err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
                         if err_code == -32401:
                             self.rpc_manager.mark_auth_failure(url)
+                        else:
+                            logger.warning(f"[poll] RPC error: {data['error']}")
                         return
                     result = data.get("result", [])
                     for entry in result:
