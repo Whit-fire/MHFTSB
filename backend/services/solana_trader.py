@@ -97,7 +97,7 @@ class SolanaTrader:
         return False
 
     async def get_latest_blockhash(self, rpc_url: str = None) -> Optional[Dict]:
-        url = rpc_url or self.jito_url
+        url = rpc_url
         if not url:
             ep = self.rpc_manager.get_tx_fetch_connection()
             url = ep.url if ep else None
