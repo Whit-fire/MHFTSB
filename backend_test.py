@@ -247,8 +247,28 @@ class HFTBotAPITester:
             return True  # This is expected if no wallet is configured/unlocked
         return False
 
-    def test_bot_start(self):
-        """Test starting the bot"""
+    def test_bot_start(self, mode="simulation"):
+        """Test starting the bot in specific mode"""
+        # First check if we need to set mode
+        if mode:
+            success, response = self.run_test(
+                f"Set Bot Mode to {mode}",
+                "POST",
+                "bot/toggle-mode",
+                200
+            )
+            if success:
+                current_mode = response.get('mode', 'unknown')
+                self.log(f"   Current mode after toggle: {current_mode}")
+                # Toggle again if we didn't get the desired mode
+                if current_mode != mode:
+                    self.run_test(
+                        f"Toggle Bot Mode Again",
+                        "POST", 
+                        "bot/toggle-mode",
+                        200
+                    )
+        
         success, response = self.run_test(
             "Start Bot",
             "POST",
@@ -258,7 +278,7 @@ class HFTBotAPITester:
         if success:
             self.log(f"   Bot started in mode: {response.get('mode', 'unknown')}")
             # Wait a bit for bot to initialize
-            time.sleep(2)
+            time.sleep(3)
         return success
 
     def test_bot_status(self):
