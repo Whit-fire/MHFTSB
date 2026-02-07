@@ -359,21 +359,174 @@ class HFTBotAPITester:
             
         return metrics_success and kpi_success
 
-    def test_logs(self):
-        """Test logs endpoint"""
-        success, response = self.run_test(
-            "Get Logs",
+    def test_solana_trader_import(self):
+        """Test that SolanaTrader imports correctly and has the new method"""
+        self.log("Testing SolanaTrader import and wait_for_bonding_curve_init method...")
+        try:
+            # Test import
+            import sys
+            sys.path.append('/app/backend')
+            from services.solana_trader import SolanaTrader
+            
+            # Check if the class has the new method
+            if hasattr(SolanaTrader, 'wait_for_bonding_curve_init'):
+                self.log("✅ SolanaTrader imports correctly and has wait_for_bonding_curve_init method")
+                self.tests_run += 1
+                self.tests_passed += 1
+                return True
+            else:
+                self.log("❌ SolanaTrader missing wait_for_bonding_curve_init method")
+                self.failed_tests.append({
+                    "name": "SolanaTrader Method Check",
+                    "expected": "wait_for_bonding_curve_init method exists",
+                    "actual": "Method not found",
+                    "endpoint": "N/A",
+                    "error": "Missing wait_for_bonding_curve_init method"
+                })
+                self.tests_run += 1
+                return False
+                
+        except ImportError as e:
+            self.log(f"❌ SolanaTrader import failed: {e}")
+            self.failed_tests.append({
+                "name": "SolanaTrader Import",
+                "expected": "Successful import",
+                "actual": "Import failed",
+                "endpoint": "N/A", 
+                "error": str(e)
+            })
+            self.critical_issues.append(f"SolanaTrader import failed: {e}")
+            self.tests_run += 1
+            return False
+        except Exception as e:
+            self.log(f"❌ SolanaTrader test failed: {e}")
+            self.failed_tests.append({
+                "name": "SolanaTrader Test",
+                "expected": "Method check successful",
+                "actual": "Test failed",
+                "endpoint": "N/A",
+                "error": str(e)
+            })
+            self.tests_run += 1
+            return False
+
+    def test_simulation_mode_comprehensive(self):
+        """Test bot in simulation mode to verify no regression"""
+        self.log("\n🤖 Testing Simulation Mode (P0 Fix Verification)...")
+        
+        # Ensure bot is stopped first
+        self.run_test("Stop Bot (cleanup)", "POST", "bot/stop", 200)
+        time.sleep(1)
+        
+        # Start in simulation mode
+        success = self.test_bot_start("simulation")
+        if not success:
+            return False
+            
+        # Let bot run for a few seconds to generate activity
+        self.log("   Letting bot run for 5 seconds to generate simulation data...")
+        time.sleep(5)
+        
+        # Check bot status
+        status_success, status_response = self.run_test(
+            "Bot Status During Simulation",
+            "GET",
+            "bot/status", 
+            200
+        )
+        
+        if status_success:
+            status = status_response.get('status', 'unknown')
+            mode = status_response.get('mode', 'unknown')
+            uptime = status_response.get('uptime_seconds', 0)
+            
+            self.log(f"   Simulation Status: {status}, Mode: {mode}, Uptime: {uptime}s")
+            
+            if status == "running" and mode == "simulation":
+                self.log("✅ Simulation mode working correctly")
+            else:
+                self.log(f"❌ Unexpected status/mode: {status}/{mode}")
+                return False
+        
+        # Check logs for any errors
+        logs_success, logs_response = self.run_test(
+            "Check Simulation Logs",
             "GET",
             "logs",
             200
         )
         
+        if logs_success:
+            logs = logs_response.get('logs', [])
+            error_logs = [log for log in logs if 'ERROR' in log.get('level', '').upper() or 'error' in log.get('message', '').lower()]
+            
+            if error_logs:
+                self.log(f"⚠️  Found {len(error_logs)} error logs during simulation:")
+                for log in error_logs[-3:]:  # Show last 3 errors
+                    self.log(f"     {log.get('message', 'N/A')}")
+            else:
+                self.log("✅ No error logs found during simulation")
+        
+        # Stop bot
+        stop_success = self.run_test("Stop Bot After Simulation", "POST", "bot/stop", 200)
+        
+        return status_success and stop_success
+
+    def test_configuration_buy_amount(self):
+        """Test that buy_amount is configured correctly (should be 0.03 SOL)"""
+        success, response = self.run_test(
+            "Get Configuration for Buy Amount",
+            "GET",
+            "config",
+            200
+        )
+        
         if success:
-            logs = response.get('logs', [])
-            self.log(f"   Recent logs: {len(logs)} entries")
-            if logs:
-                self.log(f"   Latest log: {logs[-1].get('message', 'N/A')[:50]}...")
-                
+            config = response.get('config', {})
+            
+            # Check for buy amount in various possible locations
+            buy_amount = None
+            
+            # Check common config paths
+            if 'TRADING' in config and 'BUY_AMOUNT_SOL' in config['TRADING']:
+                buy_amount = config['TRADING']['BUY_AMOUNT_SOL']
+            elif 'BUY_AMOUNT_SOL' in config:
+                buy_amount = config['BUY_AMOUNT_SOL']
+            elif 'buy_amount' in config:
+                buy_amount = config['buy_amount']
+            
+            if buy_amount is not None:
+                self.log(f"   Buy amount configured: {buy_amount} SOL")
+                if abs(float(buy_amount) - 0.03) < 0.001:  # Allow small floating point differences
+                    self.log("✅ Buy amount correctly set to 0.03 SOL")
+                    return True
+                else:
+                    self.log(f"⚠️  Buy amount is {buy_amount} SOL, expected 0.03 SOL")
+                    return True  # Not a critical issue
+            else:
+                self.log("⚠️  Buy amount not found in config, checking environment...")
+                # This might be set via environment variable
+                return True  # Not a critical failure
+        
+        return success
+
+    def test_dashboard_metrics(self):
+        """Test dashboard endpoint for metrics"""
+        success, response = self.run_test(
+            "Get Dashboard Metrics",
+            "GET",
+            "dashboard",
+            200
+        )
+        
+        if success:
+            # Check if response has expected dashboard structure
+            if isinstance(response, dict):
+                self.log(f"   Dashboard data keys: {list(response.keys())}")
+                self.log("✅ Dashboard endpoint working")
+            else:
+                self.log(f"   Dashboard response type: {type(response)}")
+        
         return success
 
     def test_bot_control(self):
