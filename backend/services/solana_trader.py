@@ -501,68 +501,35 @@ class SolanaTrader:
             return None
 
     async def wait_for_bonding_curve_init(self, bonding_curve_str: str, timeout_sec: float = 8.0) -> bool:
-        """Poll the bonding_curve account until it's owned by the pump.fun program."""
-        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        """Single-shot bonding_curve readiness check (fail fast)."""
+        rpcs = self._select_rpcs()
         if not rpcs:
-            logger.error("No RPC available for bonding_curve check")
+            logger.debug("No RPC available for bonding_curve check")
             return False
-        
-        start = time.time()
-        attempt = 0
-        delay_ms = 250  # Start with 250ms delay
-        
-        while (time.time() - start) < timeout_sec:
-            attempt += 1
-            url = rpcs[attempt % len(rpcs)]
-            
-            try:
-                async with aiohttp.ClientSession() as session:
-                    payload = {
-                        "jsonrpc": "2.0", "id": 1, "method": "getAccountInfo",
-                        "params": [bonding_curve_str, {"encoding": "base64", "commitment": "confirmed"}]
-                    }
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=3)) as resp:
-                        data = await resp.json()
-                        
-                        if "error" in data:
-                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
-                            if err_code == -32401:
-                                self.rpc_manager.mark_auth_failure(url)
-                                rpcs = [u for u in rpcs if u != url]
-                                if not rpcs:
-                                    logger.error("No RPC available after auth failures")
-                                    return False
-                            logger.warning(f"BC check error (attempt {attempt}): {data['error']}")
-                            await asyncio.sleep(delay_ms / 1000)
-                            continue
-                        
-                        value = data.get("result", {}).get("value")
-                        if not value:
-                            logger.info(f"BC account not found yet (attempt {attempt}), waiting {delay_ms}ms...")
-                            await asyncio.sleep(delay_ms / 1000)
-                            delay_ms = min(delay_ms + 50, 400)  # Increase delay gradually
-                            continue
-                        
-                        owner = value.get("owner")
-                        if owner == str(PUMP_FUN_PROGRAM):
-                            elapsed_ms = (time.time() - start) * 1000
-                            logger.info(f"BC account ready! Owner verified as pump.fun program after {elapsed_ms:.0f}ms (attempt {attempt})")
-                            return True
-                        elif owner in (str(SYSTEM_PROGRAM), str(TOKEN_PROGRAM), str(TOKEN_2022_PROGRAM)):
-                            logger.info(f"BC not ready yet (owner={owner[:12]}...), waiting {delay_ms}ms...")
-                            await asyncio.sleep(delay_ms / 1000)
-                            delay_ms = min(delay_ms + 50, 400)
-                            continue
-                        else:
-                            logger.error(f"BC owned by unexpected program: {owner}")
-                            return False
-                            
-            except Exception as e:
-                logger.warning(f"BC check attempt {attempt} failed: {e}")
-                await asyncio.sleep(delay_ms / 1000)
-        
-        logger.error(f"BC check timeout after {timeout_sec}s ({attempt} attempts)")
-        return False
+
+        url = rpcs[0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "jsonrpc": "2.0", "id": 1, "method": "getAccountInfo",
+                    "params": [bonding_curve_str, {"encoding": "base64", "commitment": "confirmed"}]
+                }
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                        if err_code == -32401:
+                            self.rpc_manager.mark_auth_failure(url)
+                        return False
+
+                    value = data.get("result", {}).get("value")
+                    if not value:
+                        return False
+
+                    owner = value.get("owner")
+                    return owner == str(PUMP_FUN_PROGRAM)
+        except Exception:
+            return False
 
 
     async def execute_buy_cloned(
