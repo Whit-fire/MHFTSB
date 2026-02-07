@@ -504,8 +504,8 @@ class SolanaTrader:
                             elapsed_ms = (time.time() - start) * 1000
                             logger.info(f"BC account ready! Owner verified as pump.fun program after {elapsed_ms:.0f}ms (attempt {attempt})")
                             return True
-                        elif owner == str(SYSTEM_PROGRAM):
-                            logger.info(f"BC still owned by System Program (attempt {attempt}), waiting {delay_ms}ms...")
+                        elif owner in (str(SYSTEM_PROGRAM), str(TOKEN_PROGRAM), str(TOKEN_2022_PROGRAM)):
+                            logger.info(f"BC not ready yet (owner={owner[:12]}...), waiting {delay_ms}ms...")
                             await asyncio.sleep(delay_ms / 1000)
                             delay_ms = min(delay_ms + 50, 400)
                             continue
