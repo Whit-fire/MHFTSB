@@ -658,18 +658,24 @@ class SolanaTrader:
             if not tx_data:
                 return {"success": False, "error": "Failed to build TX"}
 
-            sig = await self.send_transaction(tx_data["tx_base64"])
+            send_result = await self.send_transaction(tx_data["tx_base64"])
             latency = (time.time() - start) * 1000
 
-            if sig:
-                logger.info(f"execute_buy SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
+            if send_result.get("signature"):
+                sig = send_result["signature"]
                 return {
                     "success": True, "signature": sig,
                     "latency_ms": latency, "mint": mint_str,
                     "amount_sol": buy_amount_sol,
                     "entry_price_sol": buy_amount_sol,
                 }
-            return {"success": False, "error": "Send failed", "latency_ms": latency}
+            return {
+                "success": False,
+                "error": send_result.get("error"),
+                "error_type": send_result.get("error_type"),
+                "error_expected": send_result.get("error_expected", False),
+                "latency_ms": latency
+            }
 
         except Exception as e:
             logger.error(f"execute_buy failed: {e}", exc_info=True)
@@ -1004,17 +1010,23 @@ class SolanaTrader:
             if not tx_data:
                 return {"success": False, "error": "Failed to build sell TX"}
 
-            sig = await self.send_transaction(tx_data["tx_base64"])
+            send_result = await self.send_transaction(tx_data["tx_base64"])
             latency = (time.time() - start) * 1000
 
-            if sig:
-                logger.info(f"execute_sell SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
+            if send_result.get("signature"):
+                sig = send_result["signature"]
                 return {
                     "success": True, "signature": sig,
                     "latency_ms": latency, "mint": mint_str,
                     "token_amount": token_amount,
                 }
-            return {"success": False, "error": "Send failed", "latency_ms": latency}
+            return {
+                "success": False,
+                "error": send_result.get("error"),
+                "error_type": send_result.get("error_type"),
+                "error_expected": send_result.get("error_expected", False),
+                "latency_ms": latency
+            }
 
         except Exception as e:
             logger.error(f"execute_sell failed: {e}", exc_info=True)
