@@ -90,8 +90,27 @@ class RpcManagerService:
     def get_tx_fetch_connection(self) -> Optional[RpcEndpoint]:
         available = [ep for ep in self.fast_pool if ep.is_available()]
         if not available:
-            return self.fast_pool[0] if self.fast_pool else None
+            available = [ep for ep in self.cold_pool if ep.is_available()]
+        if not available:
+            all_eps = self.fast_pool + self.cold_pool
+            return all_eps[0] if all_eps else None
         return sorted(available, key=lambda e: -e.health_score)[0]
+
+    def get_all_available_rpcs(self) -> List[RpcEndpoint]:
+        """Return all available RPC endpoints sorted by health score."""
+        all_eps = [ep for ep in (self.fast_pool + self.cold_pool) if ep.is_available()]
+        if not all_eps:
+            all_eps = self.fast_pool + self.cold_pool
+        return sorted(all_eps, key=lambda e: -e.health_score)
+
+    def mark_auth_failure(self, url: str):
+        """Mark an endpoint as having auth failure (heavy penalty)."""
+        for ep in self.fast_pool + self.cold_pool:
+            if ep.url == url:
+                ep.health_score = 0
+                ep.cooldown_until = time.time() + 300  # 5 min cooldown
+                logger.warning(f"RPC auth failure, cooldown 5min: {url[:50]}...")
+                break
 
     def get_scoring_connection(self) -> Optional[RpcEndpoint]:
         available = [ep for ep in self.fast_pool if ep.is_available()]
