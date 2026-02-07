@@ -841,7 +841,7 @@ class SolanaTrader:
                         })
                 
                 if not account_metas_for_clone:
-                    return None
+                    return None, "clone_accounts_empty"
 
                 return {
                     "mint": mint,
@@ -853,13 +853,13 @@ class SolanaTrader:
                     "all_keys": keys_list,
                     "instruction_data": pump_ix.get("data", ""),
                     "account_metas_clone": account_metas_for_clone,
-                }
-            return None
+                }, None
+            return None, "missing_accounts"
 
         except Exception as e:
             # Drop silently - exceptions during extraction are common in HFT
             logger.debug(f"_extract_pump_accounts failed: {e}")
-            return None
+            return None, "extract_exception"
 
 
     async def build_sell_transaction(
