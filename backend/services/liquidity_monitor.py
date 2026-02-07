@@ -78,6 +78,8 @@ class LiquidityMonitorService:
         logger.info("WSS listeners stopped")
 
     async def _wss_loop(self, url: str, source_id: str):
+        consecutive_failures = 0
+        max_consecutive_failures = 5
         while self._running:
             try:
                 logger.info(f"[{source_id}] Connecting to {url[:50]}...")
@@ -94,6 +96,7 @@ class LiquidityMonitorService:
                         }
                         await ws.send_json(subscribe_msg)
                         logger.info(f"[{source_id}] Subscribed to Pump.fun logs")
+                        consecutive_failures = 0
 
                         async for msg in ws:
                             if not self._running:
@@ -110,10 +113,15 @@ class LiquidityMonitorService:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"[{source_id}] WSS error: {e}")
+                consecutive_failures += 1
+                logger.error(f"[{source_id}] WSS error (fail {consecutive_failures}): {e}")
+                if consecutive_failures >= max_consecutive_failures:
+                    logger.warning(f"[{source_id}] Max reconnect failures reached, disabling this endpoint")
+                    break
 
             if self._running:
-                await asyncio.sleep(self._reconnect_delay)
+                delay = min(self._reconnect_delay * (2 ** min(consecutive_failures, 4)), 60)
+                await asyncio.sleep(delay)
 
     async def _handle_log_message(self, data: dict, source_id: str):
         params = data.get("params", {})
