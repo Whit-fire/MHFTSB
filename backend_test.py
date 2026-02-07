@@ -541,6 +541,65 @@ class HFTBotAPITester:
             
         return metrics_success and kpi_success
 
+    def test_parse_service_metrics(self):
+        """Test ParseService specific metrics (parse_dropped and parse_success)"""
+        self.log("Testing ParseService metrics (parse_dropped and parse_success)...")
+        
+        success, response = self.run_test(
+            "Get ParseService Metrics",
+            "GET",
+            "metrics",
+            200
+        )
+        
+        if success:
+            counters = response.get('counters', {})
+            
+            # Check for new ParseService metrics
+            parse_dropped = counters.get('parse_dropped', 0)
+            parse_success = counters.get('parse_success', 0)
+            
+            self.log(f"   parse_dropped: {parse_dropped}")
+            self.log(f"   parse_success: {parse_success}")
+            
+            # Verify metrics exist
+            if 'parse_dropped' in counters and 'parse_success' in counters:
+                self.log("✅ ParseService metrics (parse_dropped, parse_success) are present")
+                
+                # Calculate ratio if we have data
+                total_parse_attempts = parse_dropped + parse_success
+                if total_parse_attempts > 0:
+                    success_ratio = (parse_success / total_parse_attempts) * 100
+                    self.log(f"   Parse success ratio: {success_ratio:.1f}% ({parse_success}/{total_parse_attempts})")
+                    
+                    # Expected: 80-90% success ratio (10-20% drops are normal)
+                    if success_ratio >= 70:
+                        self.log("✅ Parse success ratio is healthy (≥70%)")
+                    else:
+                        self.log(f"⚠️  Parse success ratio is low: {success_ratio:.1f}%")
+                else:
+                    self.log("   No parse attempts recorded yet (bot may not be running)")
+                
+                return True
+            else:
+                missing = []
+                if 'parse_dropped' not in counters:
+                    missing.append('parse_dropped')
+                if 'parse_success' not in counters:
+                    missing.append('parse_success')
+                
+                self.log(f"❌ Missing ParseService metrics: {missing}")
+                self.failed_tests.append({
+                    "name": "ParseService Metrics Check",
+                    "expected": "parse_dropped and parse_success metrics present",
+                    "actual": f"Missing: {missing}",
+                    "endpoint": "metrics",
+                    "error": f"ParseService metrics not found: {missing}"
+                })
+                return False
+        
+        return success
+
     def test_clone_and_inject_import(self):
         """Test that Clone & Inject methods import correctly and have required functionality"""
         self.log("Testing Clone & Inject implementation import...")
