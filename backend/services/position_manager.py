@@ -15,9 +15,15 @@ class PositionData:
         self.id = str(uuid.uuid4())
         self.token_mint = token_mint
         self.token_name = token_name
-        self.entry_price_sol = entry_price
-        self.current_price_sol = entry_price
-        self.amount_sol = amount_sol
+        try:
+            self.entry_price_sol = float(entry_price)
+        except Exception:
+            self.entry_price_sol = 0.0
+        self.current_price_sol = self.entry_price_sol
+        try:
+            self.amount_sol = float(amount_sol)
+        except Exception:
+            self.amount_sol = 0.0
         self.pnl_sol = 0.0
         self.pnl_percent = 0.0
         self.entry_time = datetime.now(timezone.utc).isoformat()
@@ -38,12 +44,15 @@ class PositionData:
         self.token_amount = token_amount
 
     def update_price(self, new_price):
-        self.current_price_sol = new_price
+        try:
+            self.current_price_sol = float(new_price)
+        except Exception:
+            self.current_price_sol = 0.0
         if self.entry_price_sol > 0:
             self.pnl_percent = ((new_price - self.entry_price_sol) / self.entry_price_sol) * 100
-        self.pnl_sol = (new_price - self.entry_price_sol) * (self.amount_sol / max(self.entry_price_sol, 0.000001))
-        if new_price > self.trailing_high:
-            self.trailing_high = new_price
+        self.pnl_sol = (self.current_price_sol - self.entry_price_sol) * (self.amount_sol / max(self.entry_price_sol, 0.000001))
+        if self.current_price_sol > self.trailing_high:
+            self.trailing_high = self.current_price_sol
 
     def to_dict(self):
         return {
