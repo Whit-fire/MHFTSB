@@ -475,12 +475,26 @@ class SolanaTrader:
                 assoc_bonding_curve = ix_accounts[4] if len(ix_accounts) > 4 else None
 
             if mint and bonding_curve:
-                logger.info(f"Extracted: mint={mint[:12]}... token_program={'T22' if token_program_str == TOKEN_2022_PROGRAM_STR else 'SPL'}")
+                # Extract creator from tx signers (first signer that isn't the mint)
+                creator = None
+                for k in keys_list:
+                    ak_entry = None
+                    for raw_ak in account_keys:
+                        pk = raw_ak.get("pubkey", "") if isinstance(raw_ak, dict) else str(raw_ak)
+                        if pk == k:
+                            ak_entry = raw_ak
+                            break
+                    if isinstance(ak_entry, dict) and ak_entry.get("signer") and k != mint:
+                        creator = k
+                        break
+
+                logger.info(f"Extracted: mint={mint[:12]}... creator={creator[:12] if creator else 'None'}... tp={'T22' if token_program_str == TOKEN_2022_PROGRAM_STR else 'SPL'}")
                 return {
                     "mint": mint,
                     "bonding_curve": bonding_curve,
                     "associated_bonding_curve": assoc_bonding_curve or "",
                     "token_program": token_program_str,
+                    "creator": creator,
                     "accounts": ix_accounts,
                     "all_keys": keys_list,
                 }
