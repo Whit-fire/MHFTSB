@@ -1012,100 +1012,76 @@ class SolanaTrader:
             return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
 
 
-    async def verify_transaction_onchain(self, signature: str, expected_mint: str = None, max_wait: int = 30) -> Dict:
-        """Verify if a transaction was confirmed on-chain and check token receipt."""
-        start = time.time()
-        logger.info(f"Verifying transaction on-chain: {signature[:20]}...")
-        
-        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+    async def verify_transaction_onchain(self, signature: str, expected_mint: str = None, max_wait: int = 0) -> Dict:
+        """Single-shot confirmation check (fail fast)."""
+        rpcs = self._select_rpcs()
         if not rpcs:
-            return {"confirmed": False, "error": "No RPC available"}
-        
-        # Wait for confirmation with retries
-        for attempt in range(max_wait):
-            url = rpcs[attempt % len(rpcs)]
-            try:
-                async with aiohttp.ClientSession() as session:
-                    payload = {
-                        "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
-                        "params": [signature, {"encoding": "jsonParsed", "commitment": "confirmed",
-                                               "maxSupportedTransactionVersion": 0}]
-                    }
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                        data = await resp.json()
-                        
-                        if "error" in data:
-                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
-                            if err_code == -32401:
-                                self.rpc_manager.mark_auth_failure(url)
-                            await asyncio.sleep(1)
-                            continue
-                        
-                        tx_data = data.get("result")
-                        if not tx_data:
-                            if attempt < max_wait - 1:
-                                await asyncio.sleep(1)
-                                continue
-                            return {"confirmed": False, "error": f"TX not found after {max_wait}s"}
-                        
-                        # TX found! Check if it succeeded
-                        meta = tx_data.get("meta", {})
-                        error = meta.get("err")
-                        
-                        if error:
-                            logger.error(f"TX {signature[:16]}... FAILED on-chain: {error}")
-                            return {
-                                "confirmed": True,
-                                "success": False,
-                                "error": error,
-                                "elapsed_s": time.time() - start
-                            }
-                        
-                        # Check token balances changes
-                        post_token_balances = meta.get("postTokenBalances", [])
-                        pre_token_balances = meta.get("preTokenBalances", [])
-                        
-                        token_received = False
-                        token_mint = None
-                        token_amount_change = 0
-                        
-                        if expected_mint and post_token_balances:
-                            for post_bal in post_token_balances:
-                                mint = post_bal.get("mint")
-                                if mint == expected_mint:
-                                    token_mint = mint
-                                    post_amount = float(post_bal.get("uiTokenAmount", {}).get("uiAmount", 0))
-                                    
-                                    # Find pre balance for same account
-                                    pre_amount = 0
-                                    account_index = post_bal.get("accountIndex")
-                                    for pre_bal in pre_token_balances:
-                                        if pre_bal.get("accountIndex") == account_index:
-                                            pre_amount = float(pre_bal.get("uiTokenAmount", {}).get("uiAmount", 0))
-                                            break
-                                    
-                                    token_amount_change = post_amount - pre_amount
-                                    if token_amount_change > 0:
-                                        token_received = True
-                                        logger.info(f"✅ TX {signature[:16]}... CONFIRMED! Wallet received {token_amount_change} tokens (mint={mint[:12]}...)")
-                                    break
-                        
-                        elapsed = time.time() - start
+            return {"confirmed": False, "error": "rpc_unavailable"}
+
+        url = rpcs[0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
+                    "params": [signature, {"encoding": "jsonParsed", "commitment": "confirmed",
+                                           "maxSupportedTransactionVersion": 0}]
+                }
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                        if err_code == -32401:
+                            self.rpc_manager.mark_auth_failure(url)
+                        return {"confirmed": False, "error": data.get("error")}
+
+                    tx_data = data.get("result")
+                    if not tx_data:
+                        return {"confirmed": False, "error": "tx_not_found"}
+
+                    meta = tx_data.get("meta", {})
+                    error = meta.get("err")
+                    if error:
+                        classified = TxErrorClassifier.classify(error)
                         return {
                             "confirmed": True,
-                            "success": True,
-                            "token_received": token_received,
-                            "token_mint": token_mint,
-                            "token_amount_change": token_amount_change,
-                            "elapsed_s": elapsed,
-                            "block_time": tx_data.get("blockTime"),
+                            "success": False,
+                            "error": error,
+                            "error_type": classified["type"],
+                            "error_expected": classified["expected"],
                         }
-                        
-            except Exception as e:
-                logger.warning(f"verify_transaction attempt {attempt+1} failed: {e}")
-                if attempt < max_wait - 1:
-                    await asyncio.sleep(1)
-        
-        return {"confirmed": False, "error": f"Timeout after {max_wait}s"}
+
+                    post_token_balances = meta.get("postTokenBalances", [])
+                    pre_token_balances = meta.get("preTokenBalances", [])
+
+                    token_received = False
+                    token_mint = None
+                    token_amount_change = 0
+
+                    if expected_mint and post_token_balances:
+                        for post_bal in post_token_balances:
+                            mint = post_bal.get("mint")
+                            if mint == expected_mint:
+                                token_mint = mint
+                                post_amount = float(post_bal.get("uiTokenAmount", {}).get("uiAmount", 0))
+                                pre_amount = 0
+                                account_index = post_bal.get("accountIndex")
+                                for pre_bal in pre_token_balances:
+                                    if pre_bal.get("accountIndex") == account_index:
+                                        pre_amount = float(pre_bal.get("uiTokenAmount", {}).get("uiAmount", 0))
+                                        break
+                                token_amount_change = post_amount - pre_amount
+                                token_received = token_amount_change > 0
+                                break
+
+                    return {
+                        "confirmed": True,
+                        "success": True,
+                        "token_received": token_received,
+                        "token_mint": token_mint,
+                        "token_amount_change": token_amount_change,
+                        "block_time": tx_data.get("blockTime"),
+                    }
+        except Exception:
+            return {"confirmed": False, "error": "rpc_exception"}
 
 
