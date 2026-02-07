@@ -223,6 +223,40 @@ class SolanaTrader:
                 logger.error(f"getLatestBlockhash failed on {url[:40]}...: {e}")
         return None
 
+    async def wait_for_signature_status(self, signature: str, max_wait: float = 2.0) -> bool:
+        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        if not rpcs:
+            return False
+        start = time.time()
+        attempt = 0
+        while time.time() - start < max_wait:
+            url = rpcs[attempt % len(rpcs)]
+            attempt += 1
+            try:
+                async with aiohttp.ClientSession() as session:
+                    payload = {
+                        "jsonrpc": "2.0", "id": 1, "method": "getSignatureStatuses",
+                        "params": [[signature], {"searchTransactionHistory": False}]
+                    }
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        data = await resp.json()
+                        if "error" in data:
+                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                            if err_code == -32401:
+                                self.rpc_manager.mark_auth_failure(url)
+                                rpcs = [u for u in rpcs if u != url]
+                                if not rpcs:
+                                    return False
+                            await asyncio.sleep(0.2)
+                            continue
+                        value = (data.get("result") or {}).get("value", [])
+                        if value and value[0]:
+                            return True
+            except Exception:
+                pass
+            await asyncio.sleep(0.2)
+        return False
+
 
     async def clone_and_inject_buy_transaction(
         self, parsed_create_data: Dict, buy_amount_sol: float,
@@ -674,6 +708,9 @@ class SolanaTrader:
         if not rpcs:
             logger.error("No RPC URL available for getTransaction")
             return None
+
+        # Wait briefly for signature to appear in RPC before fetching transaction
+        await self.wait_for_signature_status(signature, max_wait=2.0)
 
         for attempt in range(max_retries):
             url = rpcs[attempt % len(rpcs)]
