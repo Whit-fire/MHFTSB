@@ -200,8 +200,12 @@ class SolanaTrader:
         for ep in self.rpc_manager.get_all_available_rpcs():
             if ep.url not in rpcs:
                 rpcs.append(ep.url)
+        non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
+        if non_helius:
+            rpcs = non_helius
+        rpcs = sorted(rpcs, key=lambda u: 0 if "extrnode" in u else 1)
         if not rpcs:
-            logger.error("No RPC URL available for getLatestBlockhash")
+            logger.debug("No RPC URL available for getLatestBlockhash")
             return None
 
         for url in rpcs[:3]:
