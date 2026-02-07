@@ -2,6 +2,7 @@ import time
 import asyncio
 import random
 import logging
+import json
 from datetime import datetime, timezone
 
 logger = logging.getLogger("bot_manager")
@@ -28,6 +29,7 @@ class BotManager:
         self.start_time = None
         self._tasks = []
         self._running = False
+        self._last_wallet_locked_log = 0
 
     async def start(self):
         if self._running:
@@ -80,36 +82,63 @@ class BotManager:
             return
         sig = candidate["signature"]
         self.metrics.increment("wss_events_total")
-        logger.info(f"LIVE CREATE detected: {sig[:20]}...")
-        await self.log("INFO", "liquidity_monitor", f"LIVE CREATE detected: {sig[:20]}...")
+
+        now = time.time()
+        max_age_ms = self.config.get("HFT", {}).get("CANDIDATE_MAX_AGE_MS", 1500)
+        age_ms = (now - candidate.get("timestamp", now)) * 1000
+        if age_ms > max_age_ms:
+            self.metrics.increment("ttl_aborted_count")
+            await self._log_event("INFO", "gate_drop", {
+                "reason": "ttl_expired",
+                "sig": sig,
+                "age_ms": round(age_ms, 1),
+                "max_age_ms": max_age_ms
+            })
+            return
+
+        await self._log_event("INFO", "candidate", {"sig": sig, "source": candidate.get("source_wss_id")})
 
         entered = await self.hft_gate.try_enter(sig)
         self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
         if not entered:
             self.metrics.increment("hft_dropped_count")
-            await self.log("WARN", "hft_gate", "DROP - max inflight")
+            self.metrics.increment("gate_reject_max_inflight")
+            await self._log_event("INFO", "gate_drop", {
+                "reason": "max_inflight",
+                "sig": sig
+            })
             return
 
         try:
             start_t = time.time()
 
             if not self.solana_trader:
-                logger.error("No solana_trader configured")
-                await self.log("ERROR", "execution", "No solana_trader configured")
+                await self._log_event("ERROR", "guard_drop", {"reason": "no_solana_trader", "sig": sig})
                 return
 
-            parsed = await self.solana_trader.fetch_and_parse_tx(sig)
+            if not self.solana_trader._keypair:
+                if not self.solana_trader.load_keypair_from_wallet():
+                    self.metrics.increment("wallet_locked_drop")
+                    if (time.time() - self._last_wallet_locked_log) > 10:
+                        await self._log_event("INFO", "guard_drop", {"reason": "wallet_locked", "sig": sig})
+                        self._last_wallet_locked_log = time.time()
+                    return
+
+            parsed, parse_reason = await self.parse_service.parse_live_signature(sig, self.solana_trader)
             parse_ms = (time.time() - start_t) * 1000
             self.metrics.record_latency("parse_latency_ms", parse_ms)
 
             if not parsed:
-                # Expected: 10-20% of CREATE events fail parsing (incomplete/failed TX, timing issues)
-                # This is NORMAL in HFT - drop silently and move on
-                self.metrics.increment("parse_dropped")
-                # TEMPORARY DEBUG: Changed to INFO to see why 100% TX are dropped in live
-                logger.info(f"[DEBUG] Dropped unparseable TX {sig[:16]}... after {parse_ms:.0f}ms - fetch returned None")
+                self.metrics.increment("parse_drop_expected")
+                if parse_reason:
+                    self.metrics.increment(f"parse_drop_reason_{parse_reason}")
+                await self._log_event("INFO", "parse_drop", {
+                    "sig": sig,
+                    "reason": parse_reason or "unknown",
+                    "latency_ms": round(parse_ms, 1)
+                })
                 return
-            
+
             self.metrics.increment("parse_success")
 
             mint = parsed["mint"]
@@ -117,9 +146,14 @@ class BotManager:
             abc = parsed.get("associated_bonding_curve", "")
             token_prog = parsed.get("token_program")
             creator = parsed.get("creator")
-            logger.info(f"Parsed CREATE mint={mint[:12]}... bc={bc[:12]}... creator={creator[:12] if creator else 'N/A'}... tp={'T22' if token_prog and 'zQd' in token_prog else 'SPL'} in {parse_ms:.0f}ms")
-            await self.log("INFO", "parse_service",
-                           f"Parsed CREATE mint={mint[:8]}... bc={bc[:8]}... in {parse_ms:.0f}ms")
+            await self._log_event("INFO", "parse_success", {
+                "sig": sig,
+                "mint": mint,
+                "bonding_curve": bc,
+                "creator": creator,
+                "token_program": token_prog,
+                "latency_ms": round(parse_ms, 1)
+            })
 
             raw_buy_amount = self.config.get("FILTERS", {}).get("MAX_INITIAL_BUY_AMOUNT", 0.03)
             try:
@@ -149,20 +183,47 @@ class BotManager:
                 total_ms = (time.time() - start_t) * 1000
                 self.metrics.record_latency("wss_to_jito_ms", total_ms)
                 self.metrics.increment("trades_success")
-                logger.info(f"BUY SUCCESS mint={mint[:12]}... sig={result['signature'][:16]}... latency={total_ms:.0f}ms")
-                await self.log("TRADE", "execution",
-                               f"BUY LIVE mint={mint[:8]}... sig={result['signature'][:16]}... latency={total_ms:.0f}ms")
+                verification = result.get("verification", {})
+                if verification.get("confirmed"):
+                    if verification.get("success"):
+                        self.metrics.increment("confirmation_success")
+                    else:
+                        self.metrics.increment("confirmation_failed")
+                else:
+                    self.metrics.increment("confirmation_pending")
+
+                await self._log_event("INFO", "trade_success", {
+                    "sig": result.get("signature"),
+                    "mint": mint,
+                    "latency_ms": round(total_ms, 1),
+                    "confirmation": verification
+                })
             else:
                 self.metrics.increment("trades_failed")
-                logger.error(f"BUY FAILED mint={mint[:12]}...: {result.get('error')}")
-                await self.log("ERROR", "execution", f"BUY FAILED: {result.get('error')}")
+                err_type = result.get("error_type") or "unknown"
+                self.metrics.increment(f"execution_error_{err_type}")
+                log_level = "INFO" if result.get("error_expected") else "ERROR"
+                await self._log_event(log_level, "trade_failed", {
+                    "sig": result.get("signature"),
+                    "mint": mint,
+                    "error": result.get("error"),
+                    "error_type": err_type
+                })
 
         except Exception as e:
-            logger.error(f"Live candidate error: {e}", exc_info=True)
-            await self.log("ERROR", "bot_manager", f"Live error: {e}")
+            await self._log_event("ERROR", "pipeline_exception", {"sig": sig, "error": str(e)})
         finally:
             await self.hft_gate.exit(sig)
             self.metrics.set_gauge("hft_inflight_count", self.hft_gate.in_flight)
+
+    async def _log_event(self, level: str, event: str, data: dict):
+        payload = {"event": event, **(data or {})}
+        message = json.dumps(payload, separators=(",", ":"), default=str)
+        if level == "ERROR":
+            logger.error(message)
+        else:
+            logger.info(message)
+        await self.log(level, event, event, data)
 
     async def _simulation_loop(self):
         while self._running:
