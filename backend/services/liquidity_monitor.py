@@ -120,8 +120,10 @@ class LiquidityMonitorService:
                         err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
                         if err_code == -32401:
                             self.rpc_manager.mark_auth_failure(url)
+                        elif err_code == -32003:
+                            self.rpc_manager.mark_rate_limit(url)
                         else:
-                            logger.warning(f"[poll] RPC error: {data['error']}")
+                            logger.info(f"[poll] RPC error: {data['error']}")
                         return
                     result = data.get("result", [])
                     for entry in result:
