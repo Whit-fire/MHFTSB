@@ -587,6 +587,21 @@ class SolanaTrader:
                         break
 
                 logger.info(f"Extracted: mint={mint[:12]}... creator={creator[:12] if creator else 'None'}... tp={'T22' if token_program_str == TOKEN_2022_PROGRAM_STR else 'SPL'}")
+                
+                # Build complete account metas list for cloning
+                account_metas_for_clone = []
+                for idx in ix_accounts:
+                    if idx < len(account_keys):
+                        ak = account_keys[idx]
+                        pubkey_str = ak.get("pubkey", "") if isinstance(ak, dict) else str(ak)
+                        is_signer = ak.get("signer", False) if isinstance(ak, dict) else False
+                        is_writable = ak.get("writable", False) if isinstance(ak, dict) else False
+                        account_metas_for_clone.append({
+                            "pubkey": pubkey_str,
+                            "isSigner": is_signer,
+                            "isWritable": is_writable
+                        })
+                
                 return {
                     "mint": mint,
                     "bonding_curve": bonding_curve,
@@ -595,6 +610,8 @@ class SolanaTrader:
                     "creator": creator,
                     "accounts": ix_accounts,
                     "all_keys": keys_list,
+                    "instruction_data": pump_ix.get("data", ""),
+                    "account_metas_clone": account_metas_for_clone,
                 }
             return None
 
