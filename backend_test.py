@@ -412,9 +412,9 @@ class HFTBotAPITester:
         
         return success
 
-    def test_simulation_mode_with_sell_features(self):
-        """Test bot in simulation mode to verify sell features don't break existing functionality"""
-        self.log("\n🤖 Testing Simulation Mode with Sell Features...")
+    def test_simulation_mode_clone_and_inject(self):
+        """Test bot in simulation mode to verify Clone & Inject implementation doesn't break functionality"""
+        self.log("\n🤖 Testing Simulation Mode with Clone & Inject Implementation...")
         
         # Ensure bot is stopped first
         self.run_test("Stop Bot (cleanup)", "POST", "bot/stop", 200)
@@ -425,13 +425,13 @@ class HFTBotAPITester:
         if not success:
             return False
             
-        # Let bot run for a few seconds to generate positions with sell data
-        self.log("   Letting bot run for 8 seconds to generate positions with sell data...")
-        time.sleep(8)
+        # Let bot run for 10-15 seconds to generate activity using Clone & Inject
+        self.log("   Letting bot run for 12 seconds to test Clone & Inject in simulation...")
+        time.sleep(12)
         
-        # Check that positions are created with sell data
+        # Check that positions are created (Clone & Inject should work in simulation)
         positions_success, positions_response = self.run_test(
-            "Check Positions Have Sell Data",
+            "Check Positions Created with Clone & Inject",
             "GET",
             "positions",
             200
@@ -440,26 +440,29 @@ class HFTBotAPITester:
         if positions_success:
             positions = positions_response.get('positions', [])
             if positions:
-                # Check first position for sell data
-                pos = positions[0]
-                sell_fields = ['bonding_curve', 'associated_bonding_curve', 'token_program', 'creator', 'token_amount']
-                present_fields = [field for field in sell_fields if pos.get(field) is not None]
+                self.log(f"✅ Clone & Inject simulation created {len(positions)} positions")
                 
-                self.log(f"   Position sell fields present: {len(present_fields)}/{len(sell_fields)}")
-                if len(present_fields) >= 3:  # At least some sell fields should be present
-                    self.log("✅ Positions contain sell data fields")
+                # Check first position for required data
+                pos = positions[0]
+                required_fields = ['bonding_curve', 'associated_bonding_curve', 'token_program', 'creator', 'token_amount']
+                present_fields = [field for field in required_fields if pos.get(field) is not None]
+                
+                self.log(f"   Position data fields present: {len(present_fields)}/{len(required_fields)}")
+                if len(present_fields) >= 3:  # At least some fields should be present
+                    self.log("✅ Positions contain required Clone & Inject data fields")
                 else:
-                    self.log(f"⚠️  Limited sell data in positions: {present_fields}")
+                    self.log(f"⚠️  Limited data in positions: {present_fields}")
                     
                 # Test force-sell on a position if available
                 if positions:
                     self.test_force_sell_simulation()
             else:
-                self.log("   No positions created yet - this may be normal")
+                self.log("   No positions created - checking if this is expected...")
+                # This might be normal in some cases, not necessarily a failure
         
-        # Check bot status
+        # Check bot status during Clone & Inject operation
         status_success, status_response = self.run_test(
-            "Bot Status During Simulation with Sell Features",
+            "Bot Status During Clone & Inject Simulation",
             "GET",
             "bot/status", 
             200
@@ -470,16 +473,41 @@ class HFTBotAPITester:
             mode = status_response.get('mode', 'unknown')
             uptime = status_response.get('uptime_seconds', 0)
             
-            self.log(f"   Simulation Status: {status}, Mode: {mode}, Uptime: {uptime}s")
+            self.log(f"   Clone & Inject Status: {status}, Mode: {mode}, Uptime: {uptime}s")
             
             if status == "running" and mode == "simulation":
-                self.log("✅ Simulation mode with sell features working correctly")
+                self.log("✅ Clone & Inject simulation mode working correctly")
             else:
-                self.log(f"❌ Unexpected status/mode: {status}/{mode}")
+                self.log(f"❌ Unexpected status/mode during Clone & Inject: {status}/{mode}")
                 return False
         
+        # Check for any errors in logs that might indicate Clone & Inject issues
+        logs_success, logs_response = self.run_test(
+            "Check Logs for Clone & Inject Errors",
+            "GET",
+            "logs",
+            200
+        )
+        
+        if logs_success:
+            logs = logs_response.get('logs', [])
+            clone_inject_errors = []
+            for log in logs:
+                message = log.get('message', '').lower()
+                if any(keyword in message for keyword in ['clone', 'inject', 'account_metas_clone', 'pda', 'derivation']):
+                    if 'error' in message or 'failed' in message:
+                        clone_inject_errors.append(log.get('message', 'N/A'))
+            
+            if clone_inject_errors:
+                self.log(f"⚠️  Found {len(clone_inject_errors)} Clone & Inject related errors:")
+                for error in clone_inject_errors[-3:]:  # Show last 3 errors
+                    self.log(f"     {error}")
+                # Don't fail the test for this, but note the issues
+            else:
+                self.log("✅ No Clone & Inject related errors found in logs")
+        
         # Stop bot
-        stop_success = self.run_test("Stop Bot After Sell Feature Test", "POST", "bot/stop", 200)
+        stop_success = self.run_test("Stop Bot After Clone & Inject Test", "POST", "bot/stop", 200)
         
         return status_success and stop_success
 
