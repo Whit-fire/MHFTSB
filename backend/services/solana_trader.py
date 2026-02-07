@@ -724,7 +724,7 @@ class SolanaTrader:
         except Exception:
             return None, "rpc_exception"
 
-    def _extract_pump_accounts(self, tx_data: Dict) -> Optional[Dict]:
+    def _extract_pump_accounts(self, tx_data: Dict) -> Tuple[Optional[Dict], Optional[str]]:
         try:
             meta = tx_data.get("meta", {})
             if meta.get("err"):
