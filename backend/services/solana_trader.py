@@ -102,6 +102,42 @@ class SolanaTrader:
         self.tip_amount_sol = float(os.environ.get("JITO_TIP_AMOUNT", "0.015"))
         self._keypair: Optional[Keypair] = None
 
+    async def fetch_bonding_curve_creator(self, bonding_curve_str: str) -> Optional[Pubkey]:
+        """Fetch the creator pubkey from the on-chain BondingCurve account data."""
+        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        if not rpcs:
+            return None
+        for url in rpcs[:2]:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    payload = {
+                        "jsonrpc": "2.0", "id": 1, "method": "getAccountInfo",
+                        "params": [bonding_curve_str, {"encoding": "base64"}]
+                    }
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        data = await resp.json()
+                        if "error" in data:
+                            err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                            if err_code == -32401:
+                                self.rpc_manager.mark_auth_failure(url)
+                                continue
+                            continue
+                        value = data.get("result", {}).get("value")
+                        if not value:
+                            continue
+                        import base64 as b64
+                        raw = b64.b64decode(value["data"][0])
+                        # BondingCurve layout: disc(8) + 5*u64(40) + bool(1) + creator(32)
+                        if len(raw) < 81:
+                            continue
+                        creator_bytes = raw[49:81]
+                        creator = Pubkey.from_bytes(creator_bytes)
+                        logger.info(f"BC creator: {str(creator)[:12]}...")
+                        return creator
+            except Exception as e:
+                logger.error(f"fetch_bonding_curve_creator error: {e}")
+        return None
+
     def load_keypair(self, key_bytes: bytes):
         if len(key_bytes) == 64:
             self._keypair = Keypair.from_bytes(key_bytes)
