@@ -313,7 +313,7 @@ class SolanaTrader:
                         tx_data = data.get("result")
                         if not tx_data:
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(0.4 * (attempt + 1))
+                                await asyncio.sleep(0.5 + 0.5 * attempt)
                                 continue
                             logger.warning(f"TX {signature[:16]}... not found after {max_retries} attempts")
                             return None
