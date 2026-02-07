@@ -78,6 +78,37 @@ def build_buy_instruction(
     return Instruction(PUMP_FUN_PROGRAM, data, accounts)
 
 
+def build_sell_instruction(
+    seller: Pubkey, mint: Pubkey, bonding_curve: Pubkey,
+    associated_bonding_curve: Pubkey, seller_ata: Pubkey,
+    token_amount: int, min_sol_output: int,
+    creator_vault: Pubkey, user_volume_accumulator: Pubkey,
+    token_program: Pubkey = None
+) -> Instruction:
+    tp = token_program or TOKEN_2022_PROGRAM
+    # Data: discriminator(8) + amount(8) + min_sol_output(8) + track_volume(1)
+    data = SELL_DISCRIMINATOR + struct.pack("<Q", token_amount) + struct.pack("<Q", min_sol_output) + bytes([0])
+    accounts = [
+        AccountMeta(PUMP_GLOBAL, is_signer=False, is_writable=False),          # 0: global
+        AccountMeta(PUMP_FEE_RECIPIENT, is_signer=False, is_writable=True),    # 1: fee_recipient
+        AccountMeta(mint, is_signer=False, is_writable=False),                 # 2: mint
+        AccountMeta(bonding_curve, is_signer=False, is_writable=True),         # 3: bonding_curve
+        AccountMeta(associated_bonding_curve, is_signer=False, is_writable=True), # 4: associated_bonding_curve
+        AccountMeta(seller_ata, is_signer=False, is_writable=True),            # 5: associated_user
+        AccountMeta(seller, is_signer=True, is_writable=True),                 # 6: user (signer)
+        AccountMeta(SYSTEM_PROGRAM, is_signer=False, is_writable=False),       # 7: system_program
+        AccountMeta(tp, is_signer=False, is_writable=False),                   # 8: token_program
+        AccountMeta(creator_vault, is_signer=False, is_writable=True),         # 9: creator_vault
+        AccountMeta(PUMP_EVENT_AUTHORITY, is_signer=False, is_writable=False), # 10: event_authority
+        AccountMeta(PUMP_FUN_PROGRAM, is_signer=False, is_writable=False),     # 11: program
+        AccountMeta(GLOBAL_VOLUME_ACCUMULATOR, is_signer=False, is_writable=False), # 12: global_volume_accumulator
+        AccountMeta(user_volume_accumulator, is_signer=False, is_writable=True),    # 13: user_volume_accumulator
+        AccountMeta(FEE_CONFIG, is_signer=False, is_writable=False),           # 14: fee_config
+        AccountMeta(FEE_PROGRAM, is_signer=False, is_writable=False),          # 15: fee_program
+    ]
+    return Instruction(PUMP_FUN_PROGRAM, data, accounts)
+
+
 def build_create_ata_idempotent(payer: Pubkey, owner: Pubkey, mint: Pubkey, token_program: Pubkey = None) -> Instruction:
     tp = token_program or TOKEN_2022_PROGRAM
     ata = get_associated_token_address(owner, mint, tp)
