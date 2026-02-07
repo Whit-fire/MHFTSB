@@ -393,7 +393,7 @@ class SolanaTrader:
         logger.info(f"execute_buy: mint={mint_str[:12]}... amount={buy_amount_sol} SOL token_program={tp_label}")
         try:
             # CRITICAL FIX: Wait for bonding_curve to be initialized before sending TX
-            logger.info(f"Waiting for bonding_curve account to be initialized by pump.fun...")
+            logger.info("Waiting for bonding_curve account to be initialized by pump.fun...")
             bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=8.0)
             if not bc_ready:
                 logger.error("Bonding curve not initialized in time - aborting buy")
