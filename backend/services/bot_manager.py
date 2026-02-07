@@ -185,7 +185,9 @@ class BotManager:
                     self.metrics.record_latency("parse_latency_ms", parse_ms)
 
                     if not parsed:
-                        await self.log("WARN", "parse_service", "Parse failed - dropping")
+                        # Expected: Parse failures are normal in simulation - drop silently
+                        self.metrics.increment("parse_dropped")
+                        logger.debug(f"Simulation parse failed for {sig[:16]}... after {parse_ms:.0f}ms (normal)")
                         continue
 
                     await self.log("INFO", "parse_service",
