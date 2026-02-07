@@ -54,10 +54,19 @@ jito_service = JitoService(rpc_manager)
 execution_engine = ExecutionEngine(rpc_manager, jito_service)
 position_manager = PositionManager(db, current_config)
 metrics = MetricsService()
+solana_trader = SolanaTrader(rpc_manager, wallet_service)
+
+async def _live_candidate_placeholder(candidate):
+    pass
+
+liquidity_monitor = LiquidityMonitorService(on_candidate=_live_candidate_placeholder)
+
 bot_manager = BotManager(
     db, current_config, rpc_manager, hft_gate, parse_service,
     strategy_engine, execution_engine, jito_service, position_manager, metrics
 )
+bot_manager.solana_trader = solana_trader
+bot_manager.liquidity_monitor = liquidity_monitor
 telegram_service = TelegramService(bot_manager, db)
 
 # --- WebSocket Manager ---
