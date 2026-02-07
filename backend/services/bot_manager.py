@@ -63,6 +63,8 @@ class BotManager:
         for task in self._tasks:
             task.cancel()
         self._tasks.clear()
+        if self.liquidity_monitor:
+            await self.liquidity_monitor.stop()
         await self.log("INFO", "bot_manager", "Bot stopped")
         return {"status": "stopped"}
 
