@@ -35,13 +35,16 @@ class LRUDedup:
 
 
 class LiquidityMonitorService:
-    def __init__(self, on_candidate: Callable):
+    def __init__(self, on_candidate: Callable, rpc_manager=None):
         self.on_candidate = on_candidate
+        self.rpc_manager = rpc_manager
         self._dedup = LRUDedup(max_size=50000, ttl=60)
         self._running = False
         self._tasks = []
+        self._poll_task = None
         self._wss_urls = []
         self._reconnect_delay = 2
+        self._poll_interval = 1.5
 
     def configure(self, wss_urls: list):
         self._wss_urls = [u for u in wss_urls if u]
@@ -68,6 +71,8 @@ class LiquidityMonitorService:
         for i, url in enumerate(self._wss_urls):
             task = asyncio.create_task(self._wss_loop(url, f"wss_{i}"))
             self._tasks.append(task)
+        if self.rpc_manager:
+            self._poll_task = asyncio.create_task(self._poll_loop())
         logger.info(f"Started {len(self._tasks)} WSS listeners")
 
     async def stop(self):
@@ -75,7 +80,59 @@ class LiquidityMonitorService:
         for task in self._tasks:
             task.cancel()
         self._tasks.clear()
+        if self._poll_task:
+            self._poll_task.cancel()
+            self._poll_task = None
         logger.info("WSS listeners stopped")
+
+    async def _poll_loop(self):
+        while self._running:
+            try:
+                await self._poll_once()
+            except Exception as e:
+                logger.error(f"[poll] error: {e}")
+            await asyncio.sleep(self._poll_interval)
+
+    async def _poll_once(self):
+        if not self.rpc_manager:
+            return
+        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        if not rpcs:
+            return
+        url = rpcs[0]
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getSignaturesForAddress",
+            "params": [PUMP_FUN_PROGRAM, {"limit": 20, "commitment": "processed"}]
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=6)) as resp:
+                    data = await resp.json()
+                    if "error" in data:
+                        err_code = data["error"].get("code", 0) if isinstance(data["error"], dict) else 0
+                        if err_code == -32401:
+                            self.rpc_manager.mark_auth_failure(url)
+                        return
+                    result = data.get("result", [])
+                    for entry in result:
+                        sig = entry.get("signature")
+                        if not sig:
+                            continue
+                        if not self._dedup.add(sig):
+                            continue
+                        candidate = {
+                            "signature": sig,
+                            "slot": entry.get("slot", 0),
+                            "source_wss_id": "poll",
+                            "timestamp": time.time(),
+                            "logs": []
+                        }
+                        logger.info(f"[poll] candidate: {sig[:20]}...")
+                        await self.on_candidate(candidate)
+        except Exception as e:
+            logger.error(f"[poll] RPC error: {e}")
 
     async def _wss_loop(self, url: str, source_id: str):
         consecutive_failures = 0
