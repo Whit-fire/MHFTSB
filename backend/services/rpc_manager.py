@@ -113,7 +113,7 @@ class RpcManagerService:
             if ep.url == url:
                 ep.health_score = 0
                 ep.cooldown_until = time.time() + 3600  # 1h cooldown
-                logger.warning(f"RPC auth failure, cooldown 5min: {url[:50]}...")
+                logger.warning(f"RPC auth failure, cooldown 60min: {url[:50]}...")
                 break
 
     def mark_rate_limit(self, url: str):
