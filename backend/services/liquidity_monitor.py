@@ -179,6 +179,10 @@ class LiquidityMonitorService:
                 break
             except Exception as e:
                 consecutive_failures += 1
+                err_text = str(e)
+                if "401" in err_text or "Unauthorized" in err_text or "Invalid response status" in err_text:
+                    logger.info(f"[{source_id}] WSS auth error, disabling endpoint")
+                    break
                 logger.error(f"[{source_id}] WSS error (fail {consecutive_failures}): {e}")
                 if consecutive_failures >= max_consecutive_failures:
                     logger.warning(f"[{source_id}] Max reconnect failures reached, disabling this endpoint")
