@@ -1099,6 +1099,69 @@ class HFTBotAPITester:
                 
         return success
 
+    def test_parse_service_logs_clean(self):
+        """Test that ParseService logs are clean (no WARNING spam)"""
+        self.log("Testing ParseService logs for WARNING spam elimination...")
+        
+        success, response = self.run_test(
+            "Get Logs for ParseService Check",
+            "GET",
+            "logs?limit=100",  # Get more logs to check
+            200
+        )
+        
+        if success:
+            logs = response.get('logs', [])
+            self.log(f"   Checking {len(logs)} log entries for WARNING spam...")
+            
+            # Look for "Could not parse TX" warnings
+            parse_warnings = []
+            parse_debug_entries = []
+            
+            for log in logs:
+                message = log.get('message', '')
+                level = log.get('level', '').upper()
+                
+                # Check for the specific WARNING spam we're trying to eliminate
+                if 'could not parse tx' in message.lower() or 'could not parse' in message.lower():
+                    if level == 'WARNING' or level == 'WARN':
+                        parse_warnings.append(message)
+                    elif level == 'DEBUG':
+                        parse_debug_entries.append(message)
+                
+                # Also check for other parse-related warnings
+                if 'parse' in message.lower() and ('warning' in level.lower() or 'warn' in level.lower()):
+                    if 'could not' in message.lower() or 'failed' in message.lower():
+                        parse_warnings.append(message)
+            
+            # Report findings
+            if parse_warnings:
+                self.log(f"❌ Found {len(parse_warnings)} parse-related WARNING entries:")
+                for warning in parse_warnings[:3]:  # Show first 3
+                    self.log(f"     WARNING: {warning}")
+                
+                self.failed_tests.append({
+                    "name": "ParseService WARNING Spam Check",
+                    "expected": "No 'Could not parse TX' warnings",
+                    "actual": f"Found {len(parse_warnings)} warnings",
+                    "endpoint": "logs",
+                    "error": f"ParseService still generating WARNING spam: {len(parse_warnings)} warnings found"
+                })
+                self.critical_issues.append(f"CRITICAL: ParseService WARNING spam not eliminated - found {len(parse_warnings)} warnings")
+                return False
+            else:
+                self.log("✅ No parse-related WARNING spam found in logs")
+                
+                if parse_debug_entries:
+                    self.log(f"   Found {len(parse_debug_entries)} parse-related DEBUG entries (expected)")
+                    # Show a sample debug entry
+                    if parse_debug_entries:
+                        self.log(f"   Sample DEBUG: {parse_debug_entries[0][:80]}...")
+                
+                return True
+        
+        return success
+
     def print_summary(self):
         """Print test results summary"""
         self.log("\n" + "="*60)
