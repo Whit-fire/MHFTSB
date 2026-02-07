@@ -84,7 +84,7 @@ class BotManager:
         self.metrics.increment("wss_events_total")
 
         now = time.time()
-        max_age_ms = self.config.get("HFT", {}).get("CANDIDATE_MAX_AGE_MS", 1500)
+        max_age_ms = self.config.get("HFT", {}).get("CANDIDATE_MAX_AGE_MS", 8000)
         age_ms = (now - candidate.get("timestamp", now)) * 1000
         if age_ms > max_age_ms:
             self.metrics.increment("ttl_aborted_count")
