@@ -732,6 +732,7 @@ class SolanaTrader:
                             self.rpc_manager.mark_auth_failure(url)
                             return None, "rpc_auth"
                         if err_code == -32003 or "daily request limit" in err_msg.lower():
+                            self.rpc_manager.mark_rate_limit(url)
                             return None, "rpc_rate_limit"
                         return None, "rpc_error"
                     tx_data = data.get("result")
