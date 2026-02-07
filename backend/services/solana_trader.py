@@ -148,19 +148,25 @@ class SolanaTrader:
     async def build_buy_transaction(
         self, mint_str: str, bonding_curve_str: str,
         assoc_bonding_curve_str: str, buy_amount_sol: float,
-        slippage_pct: float = 25.0, blockhash_ctx: Dict = None
+        slippage_pct: float = 25.0, blockhash_ctx: Dict = None,
+        token_program_str: str = None
     ) -> Optional[Dict]:
         if not self._keypair:
             if not self.load_keypair_from_wallet():
                 logger.error("No keypair loaded")
                 return None
 
+        # Determine which token program to use
+        tp = TOKEN_2022_PROGRAM  # default to Token-2022 for pump.fun
+        if token_program_str == TOKEN_PROGRAM_STR:
+            tp = TOKEN_PROGRAM
+
         try:
             mint = Pubkey.from_string(mint_str)
             bonding_curve = Pubkey.from_string(bonding_curve_str)
             assoc_bc = Pubkey.from_string(assoc_bonding_curve_str)
             buyer = self._keypair.pubkey()
-            buyer_ata = get_associated_token_address(buyer, mint)
+            buyer_ata = get_associated_token_address(buyer, mint, tp)
 
             if not blockhash_ctx:
                 blockhash_ctx = await self.get_latest_blockhash()
@@ -175,10 +181,10 @@ class SolanaTrader:
             ixs = [
                 set_compute_unit_limit(200_000),
                 set_compute_unit_price(500_000),
-                build_create_ata_idempotent(buyer, buyer, mint),
+                build_create_ata_idempotent(buyer, buyer, mint, tp),
                 build_buy_instruction(
                     buyer, mint, bonding_curve, assoc_bc, buyer_ata,
-                    token_amount, max_sol_with_slippage
+                    token_amount, max_sol_with_slippage, tp
                 ),
             ]
 
