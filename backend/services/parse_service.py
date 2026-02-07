@@ -41,8 +41,10 @@ class ParsedEvent:
 class ParseService:
     def __init__(self, rpc_manager=None):
         self.rpc_manager = rpc_manager
+        self._parse_attempt = 0
         self._parse_count = 0
         self._drop_count = 0
+        self._drop_reasons = {}
 
     @staticmethod
     def _gen_addr() -> str:
@@ -81,10 +83,27 @@ class ParseService:
                 slot=random.randint(250000000, 260000000)
             )
             event.parse_time_ms = (time.time() - start) * 1000
+            self._parse_attempt += 1
             self._parse_count += 1
             return event
 
         return None
 
+    async def parse_live_signature(self, signature: str, solana_trader) -> (Optional[dict], Optional[str]):
+        self._parse_attempt += 1
+        parsed, reason = await solana_trader.fetch_and_parse_tx(signature)
+        if not parsed:
+            self._drop_count += 1
+            reason_key = reason or "unknown"
+            self._drop_reasons[reason_key] = self._drop_reasons.get(reason_key, 0) + 1
+            return None, reason_key
+        self._parse_count += 1
+        return parsed, None
+
     def get_stats(self) -> dict:
-        return {"parsed": self._parse_count, "dropped": self._drop_count}
+        return {
+            "parse_attempt": self._parse_attempt,
+            "parse_success": self._parse_count,
+            "parse_drop_expected": self._drop_count,
+            "drop_reasons": dict(self._drop_reasons)
+        }
