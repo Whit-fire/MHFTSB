@@ -468,16 +468,14 @@ class SolanaTrader:
             logger.error(f"build_buy_transaction failed: {e}")
             return None
 
-    async def send_transaction(self, tx_b64: str, rpc_url: str = None) -> Optional[str]:
+    async def send_transaction(self, tx_b64: str, rpc_url: str = None) -> Dict:
         url = self.jito_url if self.jito_url else rpc_url
         if not url:
             ep = self.rpc_manager.get_tx_fetch_connection()
             url = ep.url if ep else None
         if not url:
-            logger.error("No RPC URL for sending transaction")
-            return None
+            return {"signature": None, "error": "rpc_unavailable", "error_type": "rpc_unavailable", "error_expected": False}
 
-        logger.info(f"Sending TX via {url[:50]}...")
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -490,15 +488,23 @@ class SolanaTrader:
                     data = await resp.json()
                     if "result" in data:
                         sig = data["result"]
-                        logger.info(f"TX sent OK! signature={sig[:20]}...")
-                        return sig
-                    else:
-                        err = data.get("error", {})
-                        logger.error(f"sendTransaction error: {json.dumps(err) if isinstance(err, dict) else err}")
-                        return None
+                        return {"signature": sig, "error": None, "error_type": None, "error_expected": False}
+                    err = data.get("error", {})
+                    classified = TxErrorClassifier.classify(err)
+                    return {
+                        "signature": None,
+                        "error": err,
+                        "error_type": classified["type"],
+                        "error_expected": classified["expected"]
+                    }
         except Exception as e:
-            logger.error(f"send_transaction failed: {e}")
-            return None
+            classified = TxErrorClassifier.classify(str(e))
+            return {
+                "signature": None,
+                "error": str(e),
+                "error_type": classified["type"],
+                "error_expected": classified["expected"]
+            }
 
     async def wait_for_bonding_curve_init(self, bonding_curve_str: str, timeout_sec: float = 8.0) -> bool:
         """Single-shot bonding_curve readiness check (fail fast)."""
