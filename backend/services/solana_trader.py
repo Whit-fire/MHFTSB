@@ -229,6 +229,10 @@ class SolanaTrader:
         slippage_pct: float = 25.0, blockhash_ctx: Dict = None
     ) -> Optional[Dict]:
         """Clone & Inject: Clone the original CREATE instruction and inject our buy."""
+        try:
+            buy_amount_sol = float(buy_amount_sol)
+        except Exception:
+            buy_amount_sol = 0.0
         if not self._keypair:
             if not self.load_keypair_from_wallet():
                 logger.error("No keypair loaded")
@@ -336,6 +340,10 @@ class SolanaTrader:
         slippage_pct: float = 25.0, blockhash_ctx: Dict = None,
         token_program_str: str = None, creator_str: str = None
     ) -> Optional[Dict]:
+        try:
+            buy_amount_sol = float(buy_amount_sol)
+        except Exception:
+            buy_amount_sol = 0.0
         if not self._keypair:
             if not self.load_keypair_from_wallet():
                 logger.error("No keypair loaded")
