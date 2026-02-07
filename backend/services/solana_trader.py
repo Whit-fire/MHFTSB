@@ -773,7 +773,8 @@ class SolanaTrader:
             return None
 
         except Exception as e:
-            logger.error(f"_extract_pump_accounts failed: {e}")
+            # Drop silently - exceptions during extraction are common in HFT
+            logger.debug(f"_extract_pump_accounts failed: {e}")
             return None
 
 
