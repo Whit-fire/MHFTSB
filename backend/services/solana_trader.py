@@ -654,12 +654,15 @@ class SolanaTrader:
                             if attempt < max_retries - 1:
                                 await asyncio.sleep(0.3 + 0.2 * attempt)
                                 continue
-                            # Drop silently - TX not found is expected (timing, failed TX)
-                            logger.debug(f"TX {signature[:16]}... not found after {max_retries} attempts (normal)")
+                            # TEMPORARY DEBUG: Changed to INFO
+                            logger.info(f"[DEBUG] TX {signature[:16]}... not found after {max_retries} attempts (RPC returned null)")
                             return None
                         parsed = self._extract_pump_accounts(tx_data)
                         if parsed:
                             logger.info(f"Parsed TX {signature[:16]}... on attempt {attempt+1}: mint={parsed['mint'][:12]}...")
+                        else:
+                            # TEMPORARY DEBUG: Log when extraction fails
+                            logger.info(f"[DEBUG] TX {signature[:16]}... extraction failed (_extract_pump_accounts returned None)")
                         return parsed
             except Exception as e:
                 logger.debug(f"fetch_and_parse_tx attempt {attempt+1} failed: {e}")
