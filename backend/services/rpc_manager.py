@@ -116,6 +116,15 @@ class RpcManagerService:
                 logger.warning(f"RPC auth failure, cooldown 5min: {url[:50]}...")
                 break
 
+    def mark_rate_limit(self, url: str):
+        for ep in self.fast_pool + self.cold_pool:
+            if ep.url == url:
+                ep.recent_429s += 1
+                ep.health_score = max(0, ep.health_score - 30)
+                ep.cooldown_until = time.time() + 60
+                logger.info(f"RPC rate limit, cooldown 60s: {url[:50]}...")
+                break
+
     def get_scoring_connection(self) -> Optional[RpcEndpoint]:
         available = [ep for ep in self.fast_pool if ep.is_available()]
         if len(available) > 1:
