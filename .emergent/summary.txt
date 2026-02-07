@@ -1,0 +1,139 @@
+<analysis>**original_problem_statement:**
+The user has developed a Solana-based trading bot for pump.fun. The core feature, live trading, is not working. The bot successfully detects new token creation events but fails when submitting the buy transaction on-chain.
+
+The user has reported a sequence of on-chain errors:
+1.  **Initial Error:**  - This was due to pump.fun migrating to the Token-2022 standard, which the bot did not support.
+2.  **Second Error:**  - After fixing the first issue, this error appeared because pump.fun updated its 'buy' instruction to require more accounts (16 instead of the 12 the bot was providing).
+3.  **Current Error:**  - After fixing the account list, this new error indicates the bot is trying to execute the buy instruction before the token's  account has been properly initialized by the pump.fun program.
+
+The user's goal is to make the live trading functionality work reliably.
+
+**User's preferred language**: French. The next agent MUST respond in French.
+
+**what currently exists?**
+A full-stack trading bot application. The backend is built with Python (FastAPI, asyncio) and interacts with the Solana blockchain. It uses a WebSocket connection to a QuickNode RPC to listen for new pump.fun token creations. The backend has a sophisticated RPC pool management system to rotate between different providers (QuickNode, ExtrNode) if one fails. The frontend is a React-based dashboard that communicates with the backend to start/stop the bot and display its status. The bot's configuration and wallet keys are stored in a  file.
+
+**Last working item**:
+*   **Last item agent was working:** The agent was debugging the latest live trading failure. The user provided logs showing a transaction error: . This error means the  account is owned by the System Program () instead of the expected pump.fun program () when the  instruction is executed. This is a race condition where the bot acts too quickly, before the on-chain state is fully initialized.
+*   **Status:** BLOCKED
+*   **Agent Testing Done:** N (The last live test run by the agent produced this error).
+*   **Which testing method agent to use?** Manual testing. The agent needs to modify the backend code to wait for the correct account state before sending a transaction. The process should be:
+    1. Run the bot in live mode.
+    2. Observe backend logs () for the  error.
+    3. Implement a fix in .
+    4. Rerun the live test and verify that transactions are now successful on a block explorer like Solscan.
+*   **User Testing Done:** Y (User confirmed the issue with a transaction log).
+
+**All Pending/In progress Issue list**:
+*   **Issue 1:** Live trades fail with . (Priority: P0)
+
+*   **Issues Detail:**
+    *   **Issue 1: Live trades fail with **
+        *   **Attempted fixes:** None for this specific error. The previous workarounds for  and  were successful but revealed this subsequent issue.
+        *   **Next debug checklist:**
+            1.  Locate the  function in .
+            2.  Before building and sending the transaction, the bot must verify that the  account is owned by the pump.fun program ().
+            3.  Implement a loop using  that polls for the correct ownership.
+            4.  This loop should have a short delay (e.g., 200-400ms) between attempts and a reasonable timeout (e.g., 5-10 seconds) to prevent it from getting stuck.
+            5.  Only proceed with the  and  calls once the  account's owner is verified.
+        *   **Why fix this issue and what will be achieved with the fix?** This is the final known blocker preventing the bot from successfully executing live trades on pump.fun. Fixing it should make the core feature of the application operational.
+        *   **Status:** NOT STARTED
+        *   **Is recurring issue?** N
+        *   **Should Test frontend/backend/both after fix?** Backend
+        *   **Blocked on other issue:** None
+
+**In progress Task List**:
+*   None.
+
+**Upcoming and Future Tasks**
+*   **Upcoming Tasks:**
+    *   **P1: Implement Sell Functionality:** Add the logic to sell tokens acquired by the bot, based on the pump.fun program's  instruction. This will require creating  and  methods in .
+*   **Future Tasks:**
+    *   **P2: Implement Real-time P&L Tracking:** Enhance the backend and frontend to track the profit and loss for each position in real-time.
+
+**Completed work in this session**
+*   **RPC Failure Resilience:** Implemented robust RPC endpoint rotation in  and  to handle the failing Helius API key by automatically switching to QuickNode and ExtrNode.
+*   **Transaction Parsing Race Condition:** Fixed a race condition in  by switching the commitment level to  and adding retry logic with delays, ensuring transactions are available before being processed.
+*   **Token-2022 Migration Support:** Upgraded the trading logic in  to detect and handle pump.fun tokens using the Token-2022 program, fixing the  error.
+*   **Pump.fun Program Update (16 Accounts):** Updated the  in  to use the new 16-account structure required by the latest pump.fun program, fixing the  error. This included adding logic to derive several new PDAs.
+*   **Creator Address Extraction:** Modified  to parse the creator's address directly from the initial  transaction logs, making the process faster and more reliable.
+*   **Configuration Correction:** Updated the default buy amount in  from  SOL to the user-specified  SOL.
+*   **Logging Enhancements:** Added extensive logging throughout  and  for better debuggability.
+
+**Earlier issues found/mentioned but not fixed**
+*   None.
+
+**Known issue recurrence from previous fork**
+*   None.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+*   **Blockchain:** Solana
+*   **Protocols:** Pump.fun, Jito (for transaction broadcast)
+*   **Token Standards:** SPL Token, Token-2022
+*   **Backend:** Python 3.11+, FastAPI, Uvicorn, asyncio, websockets
+*   **Frontend:** React
+*   **Solana Interaction:**  and  Python libraries
+*   **Architecture:** Multi-threaded background worker for the bot, REST/WebSocket API for frontend communication.
+
+**key DB schema**
+The application uses a flat-file database .
+*   : Contains global configuration like , , etc.
+*   : Stores the  and  for the trading wallet.
+*   : An array intended to store information about tokens the bot has traded.
+
+**changes in tech stack**
+*   The application logic was significantly updated to support the **Token-2022** program, a non-trivial change from the standard SPL Token program. This is handled dynamically within .
+
+**All files of reference**
+*   : Core file containing all Solana interaction logic. It was heavily modified to handle RPC failures, add Token-2022 support, and update the pump.fun buy instruction. **The fix for the current P0 issue will be in this file.**
+*   : Manages the bot's state and orchestrates the live trading loop by calling .
+*   : Manages the pool of Solana RPC endpoints, handling rotation on authentication failures.
+*   : Contains the wallet private key and trading configuration.
+
+**Areas that need refactoring**:
+*   The  file has become very large. The pump.fun-specific logic (instruction building, PDA derivation) could be moved to a separate module (e.g., ) to improve maintainability, as this protocol is subject to frequent changes.
+
+**key api endpoints**
+*   : WebSocket for real-time frontend updates.
+*   : Starts the trading bot.
+*   : Stops the trading bot.
+*   : Manages bot settings.
+*   : Streams application logs.
+*   : Provides summary data.
+
+**Critical Info for New Agent**
+*   **Pump.fun is Unstable:** The target protocol, pump.fun, updates its on-chain program frequently and without warning. The current error is the third breaking change encountered. Be prepared for the possibility that even after fixing the current issue, another may arise.
+*   **Current Error is a Race Condition:** The  error is a timing issue. The bot is too fast. The fix requires polling and waiting for the  account to be correctly initialized on-chain before sending the buy transaction.
+*   **Wallet Must Be Funded:** The bot's wallet, configured in , has 0 SOL. While transaction logic is being debugged, no trade will ever finalize on-chain until the wallet is funded with SOL.
+*   **RPC Keys:** The Helius RPC API key is invalid. The bot currently relies on QuickNode (WSS & RPC) and ExtrNode (RPC).
+
+**documents and test reports created in this job**
+*   None.
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User (Latest):** Reports that buys still fail with  on the  account and asks for a definitive fix. (PENDING)
+2.  **User:** Reported the previous  error after the Token-2022 fix. (Resolved)
+3.  **User:** Reported the initial  error and provided a transaction link for analysis. (Resolved)
+4.  **User:** Instructed the agent to start with the P0 task (fixing live trading). (Completed)
+
+**Project Health Check:**
+*   **Broken:** The primary feature of the application, live trading, is non-functional due to the P0 bug.
+*   **Mocked:** N/A
+
+**3rd Party Integrations**
+*   **Jito Labs:** Used for broadcasting transactions to the Solana network.
+*   **QuickNode:** Used for primary WSS (event streaming) and as a fallback RPC provider.
+*   **ExtrNode:** Used as a fallback RPC provider.
+*   **Helius:** Configured as an RPC provider, but the API key is invalid and it is currently blacklisted by the .
+
+**Testing status**
+*   **Testing agent used after significant changes:** NO
+*   **Troubleshoot agent used after agent stuck in loop:** NO
+*   **Test files created:** None
+*   **Known regressions:** Live trading is fully broken due to the sequence of breaking changes from the pump.fun protocol.
+
+**Credentials to test flow:**
+*   The trading wallet's private key is in . **This wallet MUST be funded with SOL on the appropriate Solana network (devnet or mainnet) for any on-chain testing to succeed.**</analysis>
