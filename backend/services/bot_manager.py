@@ -124,6 +124,7 @@ class BotManager:
                         self._last_wallet_locked_log = time.time()
                     return
 
+            self.metrics.increment("parse_attempt")
             parsed, parse_reason = await self.parse_service.parse_live_signature(sig, self.solana_trader)
             parse_ms = (time.time() - start_t) * 1000
             self.metrics.record_latency("parse_latency_ms", parse_ms)
