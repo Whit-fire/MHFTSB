@@ -12,7 +12,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 class HFTBotAPITester:
-    def __init__(self, base_url="https://hft-gate-monitor.preview.emergentagent.com"):
+    def __init__(self, base_url="https://hft-dashboard-4.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
