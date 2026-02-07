@@ -119,9 +119,9 @@ class BotManager:
             buy_amount = self.config.get("FILTERS", {}).get("MAX_INITIAL_BUY_AMOUNT", 0.03)
 
             exec_start = time.time()
-            result = await self.solana_trader.execute_buy(
-                mint, bc, abc, buy_amount, slippage_pct=25.0,
-                token_program_str=token_prog, creator_str=creator
+            # Use Clone & Inject pattern - pass complete parsed data instead of individual fields
+            result = await self.solana_trader.execute_buy_cloned(
+                parsed, buy_amount, slippage_pct=25.0
             )
             exec_ms = (time.time() - exec_start) * 1000
             self.metrics.record_latency("execution_latency_ms", exec_ms)
