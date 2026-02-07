@@ -86,6 +86,11 @@ class RpcManagerService:
             endpoints.append({"url": extr, "pool": "fast", "role": "extrnode"})
         self.configure(endpoints)
         logger.info(f"RPC configured: {len(self.fast_pool)} fast, {len(self.cold_pool)} cold, {len(self.jito_endpoints)} jito")
+        # Log each configured RPC for debugging
+        for ep in self.fast_pool:
+            logger.info(f"  Fast RPC: {ep.role} - {ep.url[:60]}...")
+        for ep in self.cold_pool:
+            logger.info(f"  Cold RPC: {ep.role} - {ep.url[:60]}...")
 
     def get_tx_fetch_connection(self) -> Optional[RpcEndpoint]:
         available = [ep for ep in self.fast_pool if ep.is_available()]
