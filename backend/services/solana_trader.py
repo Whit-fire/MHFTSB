@@ -520,6 +520,54 @@ class SolanaTrader:
         logger.error(f"BC check timeout after {timeout_sec}s ({attempt} attempts)")
         return False
 
+
+    async def execute_buy_cloned(
+        self, parsed_create_data: Dict, buy_amount_sol: float,
+        slippage_pct: float = 25.0
+    ) -> Dict:
+        """Execute buy using Clone & Inject pattern - NO PDA DERIVATION."""
+        start = time.time()
+        mint_str = parsed_create_data.get("mint", "")
+        bonding_curve_str = parsed_create_data.get("bonding_curve", "")
+        
+        logger.info(f"execute_buy_cloned (Clone & Inject): mint={mint_str[:12]}... amount={buy_amount_sol} SOL")
+        try:
+            # CRITICAL FIX: Wait for bonding_curve to be initialized before sending TX
+            logger.info("Waiting for bonding_curve account to be initialized by pump.fun...")
+            bc_ready = await self.wait_for_bonding_curve_init(bonding_curve_str, timeout_sec=8.0)
+            if not bc_ready:
+                logger.error("Bonding curve not initialized in time - aborting buy")
+                return {"success": False, "error": "Bonding curve not ready (AccountOwnedByWrongProgram avoided)"}
+            
+            blockhash_ctx = await self.get_latest_blockhash()
+            if not blockhash_ctx:
+                return {"success": False, "error": "Failed to get blockhash"}
+
+            # Use Clone & Inject instead of reconstruction
+            tx_data = await self.clone_and_inject_buy_transaction(
+                parsed_create_data, buy_amount_sol, slippage_pct, blockhash_ctx
+            )
+            if not tx_data:
+                return {"success": False, "error": "Failed to clone & inject TX"}
+
+            sig = await self.send_transaction(tx_data["tx_base64"])
+            latency = (time.time() - start) * 1000
+
+            if sig:
+                logger.info(f"execute_buy_cloned SUCCESS: sig={sig[:20]}... latency={latency:.0f}ms")
+                return {
+                    "success": True, "signature": sig,
+                    "latency_ms": latency, "mint": mint_str,
+                    "amount_sol": buy_amount_sol,
+                    "entry_price_sol": buy_amount_sol,
+                }
+            return {"success": False, "error": "Send failed", "latency_ms": latency}
+
+        except Exception as e:
+            logger.error(f"execute_buy_cloned failed: {e}", exc_info=True)
+            return {"success": False, "error": str(e), "latency_ms": (time.time() - start) * 1000}
+
+
     async def execute_buy(
         self, mint_str: str, bonding_curve_str: str,
         assoc_bonding_curve_str: str, buy_amount_sol: float,
