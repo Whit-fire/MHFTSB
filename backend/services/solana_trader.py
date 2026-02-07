@@ -136,7 +136,7 @@ class SolanaTrader:
         self._keypair: Optional[Keypair] = None
 
     def _select_rpcs(self) -> List[str]:
-        rpcs = [ep.url for ep in self.rpc_manager.get_all_available_rpcs()]
+        rpcs = self._select_rpcs()
         non_helius = [u for u in rpcs if "helius-rpc.com" not in u]
         if non_helius:
             rpcs = non_helius
