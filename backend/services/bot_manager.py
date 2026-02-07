@@ -190,6 +190,8 @@ class BotManager:
                         logger.debug(f"Simulation parse failed for {sig[:16]}... after {parse_ms:.0f}ms (normal)")
                         continue
 
+                    self.metrics.increment("parse_success")
+
                     await self.log("INFO", "parse_service",
                                    f"Parsed {parsed.token_name} liq={parsed.liquidity_sol:.2f} SOL in {parse_ms:.0f}ms")
 
